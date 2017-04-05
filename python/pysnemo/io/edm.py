@@ -333,37 +333,6 @@ class calo_truth_hit(object):
         self.meta_info = (id, type, module, side, column, row, wall) # all int
 
 
-class muonpaddle(object):
-    """True muon paddle data from simulation
-    start,stoptime : production time
-    x0,y0,z0: step hit start
-    x1,y1,z1: step hit stop
-    energy: deposited energy in paddle
-    + only the id number in info
-    """
-    def __init__(self, t0,t1,x0,y0,z0,x1,y1,z1,en):
-        self.starttime = t0
-        self.stoptime = t1
-        self.x0 = x0
-        self.y0 = y0
-        self.z0 = z0
-        self.x1 = x1
-        self.y1 = y1
-        self.z1 = z1
-        self.energy = en
-        
-    def __str__(self):
-        s = "Muon paddle hit start = (%f,%f,%f)\n" % (self.x0,self.y0,self.z0)
-        s += "Muon paddle hit stop = (%f,%f,%f)\n" % (self.x1,self.y1,self.z1)
-        s += "hit in time = (%f,%f)\n" % (self.starttime,self.stoptime)
-        s += "hit with energy = %f\n" % self.energy
-        return s
-
-    def set_info(self, id):
-        self.meta_info = (id) # all int
-
-
-
 class truevertex(object):
     """True vertex storage from file. Holds
     time : production time
@@ -407,26 +376,30 @@ class trueparticle(object):
         s += "and energy = %f\n" % self.kinenergy
         return s
 
-class toytruth(object):
-    """ Toy simulation truth storage from file. Holds
-    slope     : true line slopes
-    intercept : true line intercepts
-    tx        : truth hit x coordinates
-    ty        : truth hit y coordinates
-    tz        : truth hit z coordinates
-    """
-    def __init__(self,slope = [], intercept = [], thits = []):
-        self.slope = slope
-        self.intercept = intercept
-        self.truth_hits = thits
 
+class toytruth(object):
+    """ Toy simulation truth storage from file. Holds 6 parameter
+    and an id counter. The 6 numbers make up originally a euclid line3 object
+    but can be used for other geometric structures too, like a helix.
+    """
+    def __init__(self, id, par0, par1, par2, par3, par4, par5):
+        self.id = id
+        vec = euclid.Vector3(par0, par1, par2)
+        pt = euclid.Point3(par3, par4, par5)
+        self.line = euclid.Line3(pt,vec)
+        self.parstore = (par0, par1, par2, par3, par4, par5) # in case the bare data is requested
 
     def __str__(self):
         s = "Toy simulation truth data\n"
-        for sl,ic in zip(self.slope,self.intercept):
-            s += "slope = %f, intercept = %f" % (sl,ic)
-        for tx,ty,tz in self.truth_hits:
-            s += "Hits: (%f,%f,%f)" % (tx,ty,tz)
-
+        s += 'id = %d '%self.id
+        s += 'parameter: (%f, %f, %f, %f, %f, %f)\n'%self.parstore
+        s += 'as line object: '
+        s += str(self.line)
         return s
+
+    def getLine(self):
+        return self.line # as euclid Line3 object
+
+    def getParameters(self):
+        return self.parstore # as tuple
 

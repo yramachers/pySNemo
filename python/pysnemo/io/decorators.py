@@ -22,8 +22,7 @@
 
 import re
 import math
-from pysnemo.io.edm import gcylinder,tracker_hit,gcylinder_truth,calo_hit,calo_truth_hit,muonpaddle,truevertex,trueparticle,toytruth
-import pysnemo.io.io_formats
+import pysnemo.io.edm as EDM
 from pysnemo.io.io_formats import flsimreader
 from pysnemo.io.io_formats import tsimreader
 
@@ -34,15 +33,6 @@ from pysnemo.control.output.tr_listToRoot import listToRoot
 import ROOT
 
 """
-SNG4 file reader decorators
----------------------------
-
-The SNG4 FileReader object provided by the io_formats package simply
-provides raw access to the data collections in an SNG4 root output file.
-
-This module provides some simple decorator objects to present this data in
-more usable forms.
-
 flsimulate file reader decorators
 ---------------------------------
 
@@ -63,212 +53,6 @@ more usable forms.
 
 """
 
-class SNG4Run(object):
-    """basic SNG4FileReader decorator
-    Must be a ROOT file containing TTree.
-
-    It constructs a dictionary based event from the data so that later 
-    algorithms may easily extract needed raw and truth data, as well as add 
-    their own data to the event. The events can thus be used in a pipeline
-    type analysis
-
-    It converts the entries in a SNG4 root
-    output file to an event structure:
-
-    event -> dict:
-        key : "raw"
-            key : "hits" -> DoK of observed voxels and their values
-            key : "truth_hits" -> dict
-                    key : track_id -> DoK of voxels hit by track track_id
-            key : "track_id" -> dict
-                    key : track_id -> PDG code of track track_id
-            key : "parent_id" -> dict
-                    key : track_id -> track ID of parent particle
-
-    Individual events can be extracted via the get_event method, and all events
-    can be iterated over via the events generator method.
-    """
-    def __init__(self, filename):
-        """construct an instance to read file filename.
-        """
-        self._file = ROOT.TFile(filename,"open")
-        self._file.cd()
-        # get tree and wrap content structure in datastruct for filling
-        r  = sng4reader(self._file)
-        self.tree = r.tree
-        self.datastruct = r.ds
-
-
-    def number_of_events(self):
-        """return number of events in the file
-        """
-        return self.tree.GetEntries()
-
-
-    def get_event(self, index):
-        """return the event at position index
-        Functions build selected raw data from 
-        self.datastruct into the event dictionary.
-        """
-        event = {}
-        self._setup_structure()
-        self.tree.GetEntry(index) # now self.datastruct is filled
-
-        event["raw"] = {}
-        event["raw"]["gg"] = self.__build_observed_gg()
-        event["raw"]["calo_hits"] = self.__build_calo_hits()
-        event["raw"]["vertex"] = self.__build_vertex()
-        event["raw"]["trueparticle"] = self.__build_trueparticle()
-
-        return event
-
-
-    def events(self):
-        """generator yielding all events in the file in sequence
-        """
-        for i in range(self.number_of_events()):
-            yield self.get_event(i)
-
-
-    def _setup_structure(self):
-        '''
-        set up structure of SNG4 output
-        '''
-        self.datastruct.tracker_id = ROOT.std.vector('int')()
-        self.datastruct.tracker_side = ROOT.std.vector('int')()
-        self.datastruct.tracker_layer = ROOT.std.vector('int')()
-        self.datastruct.tracker_column = ROOT.std.vector('int')()
-        self.datastruct.calo_id = ROOT.std.vector('int')()
-        self.datastruct.calo_side = ROOT.std.vector('int')()
-        self.datastruct.calo_column = ROOT.std.vector('int')()
-        self.datastruct.calo_row = ROOT.std.vector('int')()
-        self.datastruct.calo_wall = ROOT.std.vector('int')()
-        
-        self.datastruct.tracker_x = ROOT.std.vector('double')()
-        self.datastruct.tracker_y = ROOT.std.vector('double')()
-        self.datastruct.tracker_z = ROOT.std.vector('double')()
-        self.datastruct.tracker_sigma_z = ROOT.std.vector('double')()
-        self.datastruct.tracker_r = ROOT.std.vector('double')()
-        self.datastruct.tracker_sigma_r = ROOT.std.vector('double')()
-        self.datastruct.calo_time = ROOT.std.vector('double')()
-        self.datastruct.calo_sigma_time = ROOT.std.vector('double')()
-        self.datastruct.calo_energy = ROOT.std.vector('double')()
-        self.datastruct.calo_sigma_energy = ROOT.std.vector('double')()
-        self.datastruct.trueparticle_px = ROOT.std.vector('double')()
-        self.datastruct.trueparticle_px = ROOT.std.vector('double')()
-        self.datastruct.trueparticle_px = ROOT.std.vector('double')()
-        self.datastruct.trueparticle_time = ROOT.std.vector('double')()
-        
-        self.tree.SetBranchAddress('tracker.nohits', ROOT.AddressOf(self.datastruct, "tracker_nohits") )
-        self.tree.SetBranchAddress('tracker.id', ROOT.AddressOf(self.datastruct, "tracker_id") )
-        self.tree.SetBranchAddress('tracker.side', ROOT.AddressOf(self.datastruct, "tracker_side") )
-        self.tree.SetBranchAddress('tracker.layer', ROOT.AddressOf(self.datastruct, "tracker_layer") )
-        self.tree.SetBranchAddress('tracker.column', ROOT.AddressOf(self.datastruct, "tracker_column") )
-        self.tree.SetBranchAddress('tracker.x', ROOT.AddressOf(self.datastruct, "tracker_x") )
-        self.tree.SetBranchAddress('tracker.y', ROOT.AddressOf(self.datastruct, "tracker_y") )
-        self.tree.SetBranchAddress('tracker.z', ROOT.AddressOf(self.datastruct, "tracker_z") )
-        self.tree.SetBranchAddress('tracker.sigmaz', ROOT.AddressOf(self.datastruct, "tracker_sigma_z") )
-        self.tree.SetBranchAddress('tracker.r', ROOT.AddressOf(self.datastruct, "tracker_r") )
-        self.tree.SetBranchAddress('tracker.sigmar', ROOT.AddressOf(self.datastruct, "tracker_sigma_r") )
-        self.tree.SetBranchAddress('calo.nohits', ROOT.AddressOf(self.datastruct, "calo_nohits") )
-        self.tree.SetBranchAddress('calo.id', ROOT.AddressOf(self.datastruct, "calo_id") )
-        self.tree.SetBranchAddress('calo.side', ROOT.AddressOf(self.datastruct, "calo_side") )
-        self.tree.SetBranchAddress('calo.column', ROOT.AddressOf(self.datastruct, "calo_column") )
-        self.tree.SetBranchAddress('calo.row', ROOT.AddressOf(self.datastruct, "calo_row") )
-        self.tree.SetBranchAddress('calo.wall', ROOT.AddressOf(self.datastruct, "calo_wall") )
-        self.tree.SetBranchAddress('calo.time', ROOT.AddressOf(self.datastruct, "calo_time") )
-        self.tree.SetBranchAddress('calo.sigmatime', ROOT.AddressOf(self.datastruct, "calo_sigma_time") )
-        self.tree.SetBranchAddress('calo.energy', ROOT.AddressOf(self.datastruct, "calo_energy") )
-        self.tree.SetBranchAddress('calo.sigmaenergy', ROOT.AddressOf(self.datastruct, "calo_sigma_energy"
-                                                                 ) )
-        self.tree.SetBranchAddress('truevertex.x', ROOT.AddressOf(self.datastruct, "truevertex_x") )
-        self.tree.SetBranchAddress('truevertex.y', ROOT.AddressOf(self.datastruct, "truevertex_y") )
-        self.tree.SetBranchAddress('truevertex.z', ROOT.AddressOf(self.datastruct, "truevertex_z") )
-        self.tree.SetBranchAddress('truevertex.time', ROOT.AddressOf(self.datastruct, "truevertex_time") )
-        self.tree.SetBranchAddress('trueparticle.px', ROOT.AddressOf(self.datastruct, "trueparticle_px") )
-        self.tree.SetBranchAddress('trueparticle.py', ROOT.AddressOf(self.datastruct, "trueparticle_py") )
-        self.tree.SetBranchAddress('trueparticle.pz', ROOT.AddressOf(self.datastruct, "trueparticle_pz") )
-        self.tree.SetBranchAddress('trueparticle.time', ROOT.AddressOf(self.datastruct, "trueparticle_time") )
-
-        
-
-    def __build_observed_gg(self):
-        """return list of geiger cylinders.
-        """
-        hits = []
-        for i in range(self.datastruct.tracker_nohits):
-            x = self.datastruct.tracker_x[i]
-            y = self.datastruct.tracker_y[i]
-            z = self.datastruct.tracker_z[i]
-            dz = self.datastruct.tracker_sigma_z[i]
-            r = self.datastruct.tracker_r[i]
-            dr = self.datastruct.tracker_sigma_r[i]
-            gg = gcylinder(x,y,z,dz,r,dr)
-
-            id = self.datastruct.tracker_id[i]
-            s = self.datastruct.tracker_side[i]
-            l = self.datastruct.tracker_layer[i]
-            c = self.datastruct.tracker_column[i]
-            gg.set_info(i,id,0,s,l,c)
-            hits.append(gg)
-            
-        return hits
-
-
-    def __build_calo_hits(self):
-        """return list of calorimeter hit objects
-        """
-        data = []
-
-        for i in range(self.datastruct.calo_nohits):
-            t = self.datastruct.calo_time[i]
-            dt = self.datastruct.calo_sigma_time[i]
-            e = self.datastruct.calo_energy[i]
-            de = self.datastruct.calo_sigma_energy[i]
-            ch = calo_hit(t,dt,e,0.0)
-
-            id = self.datastruct.calo_id[i]
-            s = self.datastruct.calo_side[i]
-            c = self.datastruct.calo_column[i]
-            r = self.datastruct.calo_row[i]
-            w = self.datastruct.calo_wall[i]
-            ch.set_info(id,0,s,c,r,w)
-            data.append(ch)
-
-        return data
-
-
-    def __build_vertex(self):
-        """return list of vertex objects
-        """
-        data = []
-
-        t = self.datastruct.truevertex_time
-        x = self.datastruct.truevertex_x
-        y = self.datastruct.truevertex_y
-        z = self.datastruct.truevertex_z
-        
-        v = truevertex(x,y,z,t)
-        data.append(v)
-        return data
-
-
-    def __build_trueparticle(self):
-        """return list of true particle objects
-        """
-        data = []
-
-        for i in range(self.datastruct.trueparticle_px.size()):
-            t = self.datastruct.trueparticle_time[i]
-            px = self.datastruct.trueparticle_px[i]
-            py = self.datastruct.trueparticle_py[i]
-            pz = self.datastruct.trueparticle_pz[i]
-
-            p = trueparticle(px,py,pz,t)
-            data.append(p)
-        return data
-
-
 
 class flsimRun(object):
     """basic flsimFileReader decorator
@@ -284,13 +68,12 @@ class flsimRun(object):
 
     event -> dict:
         key : "raw"
-            key : "hits" -> DoK of observed voxels and their values
-            key : "truth_hits" -> dict
-                    key : track_id -> DoK of voxels hit by track track_id
-            key : "track_id" -> dict
-                    key : track_id -> PDG code of track track_id
-            key : "parent_id" -> dict
-                    key : track_id -> track ID of parent particle
+            key : "gg" -> tracker hits
+            key : "ggtruth" -> truth info on tracker hits from simulation
+            key : "calo_hits" -> calorimeter hits
+            key : "calotruth" -> calo truth hits
+            key : "vertex" -> vertex info
+            key : "true_particle" -> truth info about simulated particle
 
     Individual events can be extracted via the get_event method, and all events
     can be iterated over via the events generator method.
@@ -334,9 +117,6 @@ class flsimRun(object):
 
         if (self.datastruct.truecalo_nohits>0) :
             event["raw"]["calotruth"] = self.__build_calo_truth()
-
-        if (self.datastruct_truth.truemuonpaddle_nohits>0) :
-            event["raw"]["muonpaddles"] = self.__build_muonpaddles()
 
         event["raw"]["vertex"] = self.__build_vertex()
         event["raw"]["trueparticle"] = self.__build_trueparticle()
@@ -412,18 +192,6 @@ class flsimRun(object):
         self.datastruct.calo_energy = ROOT.std.vector('double')()
         self.datastruct.calo_sigmaenergy = ROOT.std.vector('double')()
 
-        self.datastruct_truth.truemuonpaddle_nohits = 0;
-        self.datastruct_truth.truemuonpaddle_id = ROOT.std.vector('int')()
-        self.datastruct_truth.truemuonpaddle_stoptime = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_starttime = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_xstart = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_ystart = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_zstart = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_xstop = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_ystop = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_zstop = ROOT.std.vector('double')()
-        self.datastruct_truth.truemuonpaddle_energy = ROOT.std.vector('double')()
-
         self.datastruct_truth.trueparticle_noparticles = 0;
         self.datastruct_truth.trueparticle_id = ROOT.std.vector('int')()
         self.datastruct_truth.trueparticle_type = ROOT.std.vector('int')()
@@ -495,18 +263,6 @@ class flsimRun(object):
         self.tree.SetBranchAddress('calo.energy', ROOT.AddressOf(self.datastruct, "calo_energy") )
         self.tree.SetBranchAddress('calo.sigmaenergy', ROOT.AddressOf(self.datastruct, "calo_sigmaenergy") )
 
-        self.tree.SetBranchAddress('truemuonpaddle.nohits', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_nohits") )
-        self.tree.SetBranchAddress('truemuonpaddle.id', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_id") )
-        self.tree.SetBranchAddress('truemuonpaddle.starttime', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_starttime") )
-        self.tree.SetBranchAddress('truemuonpaddle.stoptime', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_stoptime") )
-        self.tree.SetBranchAddress('truemuonpaddle.xstart', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_xstart") )
-        self.tree.SetBranchAddress('truemuonpaddle.ystart', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_ystart") )
-        self.tree.SetBranchAddress('truemuonpaddle.zstart', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_zstart") )
-        self.tree.SetBranchAddress('truemuonpaddle.xstop', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_xstop") )
-        self.tree.SetBranchAddress('truemuonpaddle.ystop', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_ystop") )
-        self.tree.SetBranchAddress('truemuonpaddle.zstop', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_zstop") )
-        self.tree.SetBranchAddress('truemuonpaddle.energy', ROOT.AddressOf(self.datastruct_truth, "truemuonpaddle_energy") )
-
         self.tree.SetBranchAddress('truevertex.x', ROOT.AddressOf(self.datastruct_truth, "truevertex_x") )
         self.tree.SetBranchAddress('truevertex.y', ROOT.AddressOf(self.datastruct_truth, "truevertex_y") )
         self.tree.SetBranchAddress('truevertex.z', ROOT.AddressOf(self.datastruct_truth, "truevertex_z") )
@@ -576,17 +332,6 @@ class flsimRun(object):
         self.tree.SetBranchStatus("calo.energy", 1) 
         self.tree.SetBranchStatus("calo.sigmaenergy", 1) 
         self.tree.SetBranchStatus("calo.type", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.nohits", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.id", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.starttime", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.stoptime", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.xstart", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.ystart", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.zstart", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.xstop", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.ystop", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.zstop", 1) 
-        self.tree.SetBranchStatus("truemuonpaddle.energy", 1) 
         self.tree.SetBranchStatus("truevertex.x", 1) 
         self.tree.SetBranchStatus("truevertex.y", 1) 
         self.tree.SetBranchStatus("truevertex.z", 1) 
@@ -615,7 +360,7 @@ class flsimRun(object):
             if math.isnan(r):
                 r = 23.0 # hard coded radius, dr for 
                 dr = 1.0 # peripheral hits - extra large radius
-            gg = tracker_hit(x,y,z,dz,r,dr)
+            gg = EDM.tracker_hit(x,y,z,dz,r,dr)
 
             id = self.datastruct.tracker_id[i]
             tid = self.datastruct.tracker_truehitid[i]
@@ -641,7 +386,7 @@ class flsimRun(object):
             x1 = self.datastruct.truetracker_xstop[i]
             y1 = self.datastruct.truetracker_ystop[i]
             z1 = self.datastruct.truetracker_zstop[i]
-            gg = gcylinder_truth(t,x0,y0,z0,x1,y1,z1)
+            gg = EDM.gcylinder_truth(t,x0,y0,z0,x1,y1,z1)
 
             id = self.datastruct.truetracker_id[i]
             m = self.datastruct.truetracker_module[i]
@@ -666,7 +411,7 @@ class flsimRun(object):
             dt = self.datastruct.calo_sigmatime[i]
             e = self.datastruct.calo_energy[i]
             de = self.datastruct.calo_sigmaenergy[i]
-            ch = calo_hit(t,dt,e,de)
+            ch = EDM.calo_hit(t,dt,e,de)
 
             id = self.datastruct.calo_id[i]
             type = self.datastruct.calo_type[i]
@@ -692,7 +437,7 @@ class flsimRun(object):
             y = self.datastruct.truecalo_y[i]
             z = self.datastruct.truecalo_z[i]
             e = self.datastruct.truecalo_energy[i]
-            ch = calo_truth_hit(t,x,y,z,e)
+            ch = EDM.calo_truth_hit(t,x,y,z,e)
 
             id = self.datastruct.truecalo_id[i]
             type = self.datastruct.truecalo_type[i]
@@ -702,30 +447,6 @@ class flsimRun(object):
             r = self.datastruct.truecalo_row[i]
             w = self.datastruct.truecalo_wall[i]
             ch.set_info(id,type,m,s,c,r,w)
-            data.append(ch)
-
-        return data
-
-
-    def __build_muonpaddles(self):
-        """return list of muon paddle hit objects
-        """
-        data = []
-
-        for i in range(self.datastruct_truth.truemuonpaddle_energy.size()):
-            t0 = self.datastruct_truth.truemuonpaddle_starttime[i]
-            t1 = self.datastruct_truth.truemuonpaddle_stoptime[i]
-            x0 = self.datastruct_truth.truemuonpaddle_xstart[i]
-            y0 = self.datastruct_truth.truemuonpaddle_ystart[i]
-            z0 = self.datastruct_truth.truemuonpaddle_zstart[i]
-            x1 = self.datastruct_truth.truemuonpaddle_xstop[i]
-            y1 = self.datastruct_truth.truemuonpaddle_ystop[i]
-            z1 = self.datastruct_truth.truemuonpaddle_zstop[i]
-            en = self.datastruct_truth.truemuonpaddle_energy[i]
-            ch = muonpaddle(t0,t1,x0,y0,z0,x1,y1,z1,en)
-
-            id = self.datastruct_truth.truemuonpaddle_id[i]
-            ch.set_info(id)
             data.append(ch)
 
         return data
@@ -741,7 +462,7 @@ class flsimRun(object):
         y = self.datastruct_truth.truevertex_y
         z = self.datastruct_truth.truevertex_z
         
-        v = truevertex(x,y,z,t)
+        v = EDM.truevertex(x,y,z,t)
         data.append(v)
         return data
 
@@ -760,7 +481,7 @@ class flsimRun(object):
             pz = self.datastruct_truth.trueparticle_pz[i]
             en = self.datastruct_truth.trueparticle_kinenergy[i]
 
-            p = trueparticle(id,type,px,py,pz,t,en)
+            p = EDM.trueparticle(id,type,px,py,pz,t,en)
             data.append(p)
         return data
 
@@ -780,13 +501,7 @@ class ToySimRun(object):
 
     event -> dict:
         key : "raw" -> dict
-            key : "hits" -> DoK of voxels and their values
-            key : "truth_hits" -> dict
-                key: track_id -> DoK of voxels hit by track track_id
-            key : "track_id" -> dict
-                key : track_id -> PDG code of track track_id
-            key : "parent_id" -> dict
-                key : track_id -> track ID of parent track (always 0)
+            key : "gg" -> tracker hits
 
     NOTE: Since the toy MC events generated by TrackGen involve no
     physics processes, the PDG code of each track is set to 0.
@@ -815,30 +530,42 @@ class ToySimRun(object):
         """Return the event at position index
         """
         event = { }
-        self.datastruct.slope = ROOT.std.vector('double')()
-        self.datastruct.intercept = ROOT.std.vector('double')()
+        self.datastruct.dirx = ROOT.std.vector('double')()
+        self.datastruct.diry = ROOT.std.vector('double')()
+        self.datastruct.dirz = ROOT.std.vector('double')()
+        self.datastruct.pointx = ROOT.std.vector('double')()
+        self.datastruct.pointy = ROOT.std.vector('double')()
+        self.datastruct.pointz = ROOT.std.vector('double')()
         self.datastruct.radius = ROOT.std.vector('double')()
         self.datastruct.wirex = ROOT.std.vector('double')()
         self.datastruct.wirey = ROOT.std.vector('double')()
         self.datastruct.wirez = ROOT.std.vector('double')()
-        self.datastruct.truthx = ROOT.std.vector('double')()
-        self.datastruct.truthy = ROOT.std.vector('double')()
+        self.datastruct.grid_id = ROOT.std.vector('int')()
+        self.datastruct.grid_side = ROOT.std.vector('int')()
+        self.datastruct.grid_layer = ROOT.std.vector('int')()
+        self.datastruct.grid_column = ROOT.std.vector('int')()
 
-        self.tree.SetBranchAddress('slope', ROOT.AddressOf(self.datastruct, "slope") )
-        self.tree.SetBranchAddress('intercept', ROOT.AddressOf(self.datastruct, "intercept") )
+        self.tree.SetBranchAddress('dirx', ROOT.AddressOf(self.datastruct, "dirx") )
+        self.tree.SetBranchAddress('diry', ROOT.AddressOf(self.datastruct, "diry") )
+        self.tree.SetBranchAddress('dirz', ROOT.AddressOf(self.datastruct, "dirz") )
+        self.tree.SetBranchAddress('pointx', ROOT.AddressOf(self.datastruct, "pointx") )
+        self.tree.SetBranchAddress('pointy', ROOT.AddressOf(self.datastruct, "pointy") )
+        self.tree.SetBranchAddress('pointz', ROOT.AddressOf(self.datastruct, "pointz") )
         self.tree.SetBranchAddress('radius', ROOT.AddressOf(self.datastruct, "radius") )
         self.tree.SetBranchAddress('wirex', ROOT.AddressOf(self.datastruct, "wirex") )
         self.tree.SetBranchAddress('wirey', ROOT.AddressOf(self.datastruct, "wirey") )
         self.tree.SetBranchAddress('wirez', ROOT.AddressOf(self.datastruct, "wirez") )
-        self.tree.SetBranchAddress('truthx', ROOT.AddressOf(self.datastruct, "truthx") )
-        self.tree.SetBranchAddress('truthy', ROOT.AddressOf(self.datastruct, "truthy") )
+        self.tree.SetBranchAddress('grid_id', ROOT.AddressOf(self.datastruct, "grid_id") )
+        self.tree.SetBranchAddress('grid_side', ROOT.AddressOf(self.datastruct, "grid_side") )
+        self.tree.SetBranchAddress('grid_layer', ROOT.AddressOf(self.datastruct, "grid_layer") )
+        self.tree.SetBranchAddress('grid_column', ROOT.AddressOf(self.datastruct, "grid_column") )
 
 
         self.tree.GetEntry(index) # now self.datastruct is filled
 
         event["raw"] = {}
         event["raw"]["gg"] = self.__build_observed_gg()
-        event["raw"]["trueparticle"] = self.__build_toytruth()
+        event["raw"]["truthsim"] = self.__build_truth()
 
         return event
     
@@ -850,40 +577,49 @@ class ToySimRun(object):
 
 
     def __build_observed_gg(self):
-        """return list of geiger cylinders.
+        """return list of tracker hit data.
         """
         hits = []
         for i in range(self.datastruct.wirex.size()):
             x = self.datastruct.wirex[i]
             y = self.datastruct.wirey[i]
             z = self.datastruct.wirez[i]
-            dz = 0.7
+            dz = 7.0 # [mm]
             r = self.datastruct.radius[i]
-            dr = 0.07
-            gg = gcylinder(x,y,z,dz,r,dr)
-            gg.set_info(i,0,0,0,0) # set id
+            dr = 0.9 # [mm]
+            gg = EDM.tracker_hit(x,y,z,dz,r,dr) # from edm
+
+            id = self.datastruct.grid_id[i]
+            tid = 0
+            m = 0
+            s = self.datastruct.grid_side[i]
+            l = self.datastruct.grid_layer[i]
+            c = self.datastruct.grid_column[i]
+            gg.set_info(id,tid,m,s,l,c)
 
             hits.append(gg)
             
         return hits
 
-    def __build_toytruth(self):
-        """return list of toy true objects
-        """
 
-        slope = []
-        inter = []
-        truth = []
-        for sl,ic in zip(self.datastruct.slope,self.datastruct.intercept):
-            slope.append(sl)
-            inter.append(ic)
+    def __build_truth(self):
+        """return list of truth objects used to create tracker hit data.
+        """
+        hits = []
+        for i in range(self.datastruct.dirx.size()):
+            dirx = self.datastruct.dirx[i]
+            diry = self.datastruct.diry[i]
+            dirz = self.datastruct.dirz[i]
+            pointx = self.datastruct.pointx[i]
+            pointy = self.datastruct.pointy[i]
+            pointz = self.datastruct.pointz[i]
             
-        for tx,ty,tz in zip(self.datastruct.truthx,self.datastruct.truthy,self.datastruct.wirez):
-            truth.append((tx,ty,tz))
-        
-        t = toytruth(slope,inter,truth)
-                    
-        return t
+            gg = EDM.toytruth(i,dirx,diry,dirz,pointx,pointy,pointz) # from edm
+
+            hits.append(gg)
+            
+        return hits
+
 
 
         

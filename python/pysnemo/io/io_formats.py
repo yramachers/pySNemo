@@ -19,49 +19,23 @@
 # along with pySNemo.  If not, see <http://www.gnu.org/licenses/>.
 
 import ROOT
-ROOT.gROOT.ProcessLine(
-"struct SNG4DataStruct{\
-   int             tracker_nohits;\
-   vector<int>*    tracker_id;\
-   vector<int>*    tracker_side;\
-   vector<int>*    tracker_layer;\
-   vector<int>*    tracker_column;\
-   vector<double>* tracker_x;\
-   vector<double>* tracker_y;\
-   vector<double>* tracker_z;\
-   vector<double>* tracker_sigma_z;\
-   vector<double>* tracker_r;\
-   vector<double>* tracker_sigma_r;\
-   int             calo_nohits;\
-   vector<int>*    calo_id;\
-   vector<int>*    calo_side;\
-   vector<int>*    calo_column;\
-   vector<int>*    calo_row;\
-   vector<int>*    calo_wall;\
-   vector<double>* calo_time;\
-   vector<double>* calo_sigma_time;\
-   vector<double>* calo_energy;\
-   vector<double>* calo_sigma_energy;\
-   double          truevertex_x;\
-   double          truevertex_y;\
-   double          truevertex_z;\
-   double          truevertex_time;\
-   vector<double>* trueparticle_px;\
-   vector<double>* trueparticle_py;\
-   vector<double>* trueparticle_pz;\
-   vector<double>* trueparticle_time;\
-};");
 
 ROOT.gROOT.ProcessLine(
 "struct ToySimDataStruct{\
-   vector<double>* slope;\
-   vector<double>* intercept;\
+   vector<double>* dirx;\
+   vector<double>* diry;\
+   vector<double>* dirz;\
+   vector<double>* pointx;\
+   vector<double>* pointy;\
+   vector<double>* pointz;\
    vector<double>* radius;\
    vector<double>* wirex;\
    vector<double>* wirey;\
    vector<double>* wirez;\
-   vector<double>* truthx;\
-   vector<double>* truthy;\
+   vector<int>*    grid_id;\
+   vector<int>*    grid_side;\
+   vector<int>*    grid_layer;\
+   vector<int>*    grid_column;\
 };");
 
 ROOT.gROOT.ProcessLine(
@@ -123,17 +97,6 @@ ROOT.gROOT.ProcessLine(
 
 ROOT.gROOT.ProcessLine(
 "struct TruthDataStruct{\
-   int             truemuonpaddle_nohits;\
-   vector<int>*    truemuonpaddle_id;\
-   vector<double>* truemuonpaddle_stoptime;\
-   vector<double>* truemuonpaddle_starttime;\
-   vector<double>* truemuonpaddle_xstart;\
-   vector<double>* truemuonpaddle_ystart;\
-   vector<double>* truemuonpaddle_zstart;\
-   vector<double>* truemuonpaddle_xstop;\
-   vector<double>* truemuonpaddle_ystop;\
-   vector<double>* truemuonpaddle_zstop;\
-   vector<double>* truemuonpaddle_energy;\
    double          truevertex_x;\
    double          truevertex_y;\
    double          truevertex_z;\
@@ -147,20 +110,6 @@ ROOT.gROOT.ProcessLine(
    vector<double>* trueparticle_pz;\
    vector<double>* trueparticle_time;\
 };");
-
-class sng4reader(object):
-    '''
-    Simple file reader of SNG4 output root files with selected data fields 
-    as specified in the SNG4DataStruct.
-
-    Takes root file pointer (a TFile object) and returns immediately
-    the tree (hard-coded name: "SimData") and a SNG4DataStruct object.
-    Filling the data structure takes place in the decorator when 
-    constructing an Event.
-    '''
-    def __init__(self, file):
-        self.ds = ROOT.SNG4DataStruct()
-        self.tree = file.Get("SimData")
 
 
 class flsimreader(object):
