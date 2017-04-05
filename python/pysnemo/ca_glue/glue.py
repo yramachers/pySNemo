@@ -27,7 +27,7 @@ smaller clusters to the main cluster candidates:
 
 """
 from numpy import array, where
-from pysnemo.io.edm import tracker_hit, gcylinder
+from pysnemo.io.edm import tracker_hit
 
 __all__ = ['MergeXY','RoadSweeper']
 
@@ -133,9 +133,7 @@ class RoadSweeper(object):
 		self.ggdata = raw_data
 		self.wirecoords = []
 		for gg in self.ggdata:
-			if isinstance(gg,gcylinder):
-				self.wirecoords.append((gg.xwire,gg.ywire,0.0))
-			elif isinstance(gg,tracker_hit):
+			if isinstance(gg,tracker_hit):
 				self.wirecoords.append((gg.x,gg.y,gg.z))
 			elif isinstance(gg.tangentpoint_hit):
 				self.wirecoords.append((gg.x,gg.y,gg.z))
@@ -157,7 +155,6 @@ class RoadSweeper(object):
 
 
 	def getClusters(self):
-		# translate into gcylinder objects
 		geiger = {}
 		if len(self.out)<1:
 			return {},[]
