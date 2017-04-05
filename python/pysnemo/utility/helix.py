@@ -113,7 +113,6 @@ class helix(object):
         sign = self.Bfield/abs(self.Bfield)
         phi0 = atan2(self.referencePoint[1] - self.yCentre, self.referencePoint[0] - self.xCentre)
 
-        nCircles = 0
         if (self.charge*sign)>0:
             phi = atan2(point[1] - self.yCentre, point[0] - self.xCentre)
             offset = (pi + phi0)/(2.0*pi)
@@ -121,16 +120,10 @@ class helix(object):
             phi = atan2(point[1] - self.yCentre, point[0] - self.xCentre) + pi
             offset = (phi0)/(2.0*pi) - 0.5
 
-        xCircles = offset + (sign*self.charge*(point[2]+self.referencePoint[2])) / (2.0*pi*(self.tanlambda*self.radius))
-        if (xCircles==1.0):
-            nCircles = int(xCircles-1)
-        else:
-            nCircles = int(xCircles)
-
         if (self.charge*sign)>0:
-            dPhi = 2.0*pi*float(nCircles) + phi - phi0
+            dPhi = phi - phi0
         else:
-            dPhi = 2.0*pi*float(nCircles) + phi - phi0 - pi
+            dPhi = phi - phi0 - pi
 
         zOnHelix = self.referencePoint[2] + sign*self.charge*self.radius*self.tanlambda*dPhi
         distZ = abs(zOnHelix - point[2])

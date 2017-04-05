@@ -302,15 +302,13 @@ class toytruth(object):
         self.id = id
         vec = euclid.Vector3(par0, par1, par2)
         pt = euclid.Point3(par3, par4, par5)
-        self.line = euclid.Line3(pt,vec)
+        self.line = euclid.Line3(pt,vec) # convenience, not useful for helix truth
         self.parstore = (par0, par1, par2, par3, par4, par5) # in case the bare data is requested
 
     def __str__(self):
         s = "Toy simulation truth data\n"
         s += 'id = %d '%self.id
         s += 'parameter: (%f, %f, %f, %f, %f, %f)\n'%self.parstore
-        s += 'as line object: '
-        s += str(self.line)
         return s
 
     def getLine(self):

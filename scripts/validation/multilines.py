@@ -2,6 +2,8 @@ from math import sqrt, tan, pi, atan
 import numpy as np
 import random
 from pysnemo.utility import euclid
+from pysnemo.utility import helix as HX
+
 
 class demonstratorgrid(object):
     """
@@ -15,7 +17,7 @@ class demonstratorgrid(object):
         self.columns = 9  # tracker geometry
         self.d = 44.0  # [mm] sense wire distance
         self.offsetx = 53.0 # [mm] for wire plane 0 closest to foil
-        self.offsety = -2464.0 # [mm] bottom of foil
+        self.offsety = -2464.0 # [mm] bottom wire row
 
         # have a 2d array of given dimensions
         self.grid_left = np.zeros((self.rows,self.columns),dtype=('f4,f4')) # tracker side = 0
@@ -58,15 +60,24 @@ class demonstratorgrid(object):
         else:
             tracker = self.grid_right
 
+        self.wireinfo = [] # clean start
         m = 0
         for entry in tracker: # rows
             for n in range(len(entry)): # columns
-                pos = euclid.Point3(entry[n][0], entry[n][1], 0.0) # point of wire in grid
-                wire = euclid.Line3(pos,zvec) # wire into a vertical 3D line
-                darr[m][n] = wire.connect(line).length # shortest distance line to line in 3D
+                if isinstance(line, euclid.Line3): # input was a Line3 object
+                    pos = euclid.Point3(entry[n][0], entry[n][1], 0.0) # point of wire in grid
+                    wire = euclid.Line3(pos,zvec) # wire into a vertical 3D line
+                    darr[m][n] = wire.connect(line).length # shortest distance line to line in 3D
+
+                elif isinstance(line, HX.helix): # input was a Helix object
+                    distance = line.GetDistanceToPoint((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 0.0)) # input in [m]
+                    darr[m][n] = distance[0]*1.0e3 # [mm] shortest distance helix to wire point in 2D
+
+                else:
+                    print 'grid ERROR: input type unknown, not line nor helix'
+                    return [], []
             m += 1
                 
-        self.wireinfo = [] # clean start
         cells = []
         radius = []
         iarr,jarr = np.where(darr <= (0.51*self.d)) #allow minimal overlap
@@ -160,3 +171,29 @@ class track_generator(object):
             intercept = random.uniform(-2464.0,2464.0) # limit from demonstrator y-axis
             self.lines.append(self.single_line_random_slope(intercept))
 
+
+
+class helix_generator(object):
+    """
+    simple helix generator
+    Input: None
+    Output: Helix object from utility helix.py with generated properties, 
+            to be used to get wire hits from grid object.
+    """
+    def __init__(self):
+        self.helices = [] # helix container
+
+
+    def single_random_momentum(self, intercept = 0.0):
+        pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
+
+        py = random.uniform(-0.1,0.1) # random momenta x, y 
+        px = random.uniform(0.4,1.4)
+        pz = 0.0 # try only 2D on wire distance
+        momentum = (px,py,pz) # unit [MeV/c]
+
+        charge = 1.0 # unit [e]
+
+        bfield = 2.5e-3 # 25 Gauss
+
+        return HX.helix(pos,momentum,charge,bfield)
