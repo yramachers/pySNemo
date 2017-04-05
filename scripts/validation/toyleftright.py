@@ -19,10 +19,10 @@ root.gROOT.ProcessLine(
    vector<int>*    grid_column;\
 };");
 
-Nsims = 1 # Number of simulated lines
+Nsims = 10 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
-file = root.TFile("single.tsim","recreate")
+file = root.TFile("/tmp/double_atvertex.tsim","recreate")
 tree = root.TTree("hit_tree","Hit data")
 tree.SetDirectory(file)
 
@@ -60,68 +60,66 @@ tree.Branch('grid_column', dataStruct.gridcolumn)
 wgr = ML.demonstratorgrid()
 tgen = ML.track_generator()
 
-tgen.double_random_atvertex() # vertex on foil at x=0,y=0
-both = tgen.getLines()
-lines = []
+for i in range(Nsims):
+    tgen.double_random_atvertex() # vertex on foil at x=0,y=0
+    both = tgen.getLines()
+    lines = []
 
-# enable one line on the left
-lines.append((both[0],0))
+    # enable one line on the left
+    lines.append((both[0],0))
 
-# second line on the right
-lines.append((both[1],1))
+    # second line on the right
+    lines.append((both[1],1))
 
-# all hits related truth data in cluster
-cluster = wgr.multi_track_hits(lines)
+    # all hits related truth data in cluster
+    cluster = wgr.multi_track_hits(lines)
 
-file.cd()
-# Prepare data structure for this line
-dataStruct.dirx.clear()
-dataStruct.diry.clear()
-dataStruct.dirz.clear()
-dataStruct.pointx.clear()
-dataStruct.pointy.clear()
-dataStruct.pointz.clear()
-dataStruct.radius.clear()
-dataStruct.wirex.clear()
-dataStruct.wirey.clear()
-dataStruct.wirez.clear()
-dataStruct.gridid.clear()
-dataStruct.gridside.clear()
-dataStruct.gridlayer.clear() 
-dataStruct.gridcolumn.clear()
+    file.cd()
+    # Prepare data structure for this line
+    dataStruct.dirx.clear()
+    dataStruct.diry.clear()
+    dataStruct.dirz.clear()
+    dataStruct.pointx.clear()
+    dataStruct.pointy.clear()
+    dataStruct.pointz.clear()
+    dataStruct.radius.clear()
+    dataStruct.wirex.clear()
+    dataStruct.wirey.clear()
+    dataStruct.wirez.clear()
+    dataStruct.gridid.clear()
+    dataStruct.gridside.clear()
+    dataStruct.gridlayer.clear() 
+    dataStruct.gridcolumn.clear()
 
-counter = 0
-for k,val in cluster.iteritems():
-    line = lines[k-1][0]  # line3 object
-    cells = val[0] # first list in cluster tuple 
-    radii = val[1] # as list
-    info = val[2]  # as list
+    counter = 0
+    for k,val in cluster.iteritems():
+        line = lines[k-1][0]  # line3 object
+        cells = val[0] # first list in cluster tuple 
+        radii = val[1] # as list
+        info = val[2]  # as list
+        
+        dataStruct.dirx.push_back(line.v.x)
+        dataStruct.diry.push_back(line.v.y)
+        dataStruct.dirz.push_back(line.v.z)
+        dataStruct.pointx.push_back(line.p.x)
+        dataStruct.pointy.push_back(line.p.y)
+        dataStruct.pointz.push_back(line.p.z)
 
-    dataStruct.dirx.push_back(line.v.x)
-    dataStruct.diry.push_back(line.v.y)
-    dataStruct.dirz.push_back(line.v.z)
-    dataStruct.pointx.push_back(line.p.x)
-    dataStruct.pointy.push_back(line.p.y)
-    dataStruct.pointz.push_back(line.p.z)
+        for w,r,mi in zip(cells,radii,info):
+            dataStruct.radius.push_back(r)
+            dataStruct.wirex.push_back(w[0])
+            dataStruct.wirey.push_back(w[1])
+            dataStruct.wirez.push_back(0.0)
+            dataStruct.gridid.push_back(counter)
+            side = mi[0] # wire side
+            row = mi[1] # wire column
+            col = mi[2] # wire layer
+            dataStruct.gridlayer.push_back(row)
+            dataStruct.gridcolumn.push_back(col)
+            dataStruct.gridside.push_back(side) 
+            counter += 1 # count up all hits for entire event
 
-    print 'entries: %d'%len(info)
-    print 'for line: ',line
-    for w,r,mi in zip(cells,radii,info):
-        dataStruct.radius.push_back(r)
-        dataStruct.wirex.push_back(w[0])
-        dataStruct.wirey.push_back(w[1])
-        dataStruct.wirez.push_back(0.0)
-        dataStruct.gridid.push_back(counter)
-        side = mi[0] # wire side
-        col = mi[1] # wire column
-        row = mi[2] # wire layer
-        dataStruct.gridlayer.push_back(row)
-        dataStruct.gridcolumn.push_back(col)
-        dataStruct.gridside.push_back(side) # not covered yet 
-        counter += 1 # count up all hits for entire event
-        print mi
-
-tree.Fill() # data structure fully filled, lines done
-
+    tree.Fill() # data structure fully filled, lines done
+    
 tree.Write() # write all lines to disk
 file.Close()

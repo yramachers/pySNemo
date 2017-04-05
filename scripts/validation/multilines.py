@@ -83,7 +83,7 @@ class demonstratorgrid(object):
         iarr,jarr = np.where(darr <= (0.51*self.d)) #allow minimal overlap
         for ind,item in enumerate(iarr):
             jind = jarr[ind]
-            self.wireinfo.append((side, jind, item)) # side column, layer
+            self.wireinfo.append((side, jind, item)) # side, row, column
             cells.append(tracker[item][jind])
             radius.append(darr[item][jind])
   
@@ -137,10 +137,6 @@ class track_generator(object):
     def single_line_manual(self, slope, intercept = 0.0):
         # no container needed
         vec = euclid.Vector3(1.0, slope,0.0)
-        if intercept<-2332.0: # limits in y-axis allows at least three cells to fire
-            intercept = -2332.0
-        elif intercept>2332.0:
-            intercept = 2332.0
         pos = euclid.Point3(0.0, intercept, 0.0) # fix at x=0 plane -> foil plane
         return euclid.Line3(pos,vec)
 
@@ -151,29 +147,17 @@ class track_generator(object):
         while (angle>(0.5*pi-0.08) or angle<(-0.5*pi+0.08)):# cut vertical out
             angle = 0.5*random.vonmisesvariate(0.0,0) #uniform angle (0,pi)
         sl = tan(angle)
-        if intercept<-2332.0: # limits in y-axis allows at least three cells to fire
-            intercept = -2332.0
-        elif intercept>2332.0:
-            intercept = 2332.0
         return self.single_line_manual(sl, intercept)
 
 
     def double_manual_atvertex(self, sl1, sl2, intercept = 0.0):
         self.lines = [] # clear
-        if intercept<-2332.0: # limits in y-axis allows at least three cells to fire
-            intercept = -2332.0
-        elif intercept>2332.0:
-            intercept = 2332.0
         self.lines.append(self.single_line_manual(sl1, intercept))
         self.lines.append(self.single_line_manual(sl2, intercept))
         
 
     def double_random_atvertex(self, intercept = 0.0):
         self.lines = [] # clear
-        if intercept<-2332.0: # limits in y-axis allows at least three cells to fire
-            intercept = -2332.0
-        elif intercept>2332.0:
-            intercept = 2332.0
         self.lines.append(self.single_line_random_slope(intercept))
         self.lines.append(self.single_line_random_slope(intercept))
         
@@ -184,7 +168,7 @@ class track_generator(object):
             nlines = 1 # minimum 1 line
         
         for i in range(nlines):
-            intercept = random.uniform(-2332.0,2332.0) # limit from demonstrator y-axis
+            intercept = random.uniform(-2464.0,2464.0) # limit from demonstrator y-axis
             self.lines.append(self.single_line_random_slope(intercept))
 
 
@@ -201,10 +185,6 @@ class helix_generator(object):
 
 
     def single_random_momentum(self, intercept = 0.0):
-        if intercept<-2332.0: # limits in y-axis allows at least three cells to fire
-            intercept = -2332.0
-        elif intercept>2332.0:
-            intercept = 2332.0
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
 
         py = random.uniform(-0.1,0.1) # random momenta x, y 

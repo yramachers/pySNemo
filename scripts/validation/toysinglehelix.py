@@ -148,7 +148,7 @@ dataStruct.pointz.push_back(refp[2])
 
 print 'for helix: '
 print struc
-
+print info
 if len(info): # only if there is any data at all
     ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
 
@@ -160,8 +160,8 @@ for w,r,mi in zip(ncells, nradii, ninfo):
     dataStruct.wirez.push_back(0.0)
     dataStruct.gridid.push_back(0)
     side = mi[0] # wire side
-    col = mi[1] # wire column
-    row = mi[2] # wire layer
+    row = mi[1] # wire column
+    col = mi[2] # wire layer
     dataStruct.gridlayer.push_back(row)
     dataStruct.gridcolumn.push_back(col)
     dataStruct.gridside.push_back(side)
