@@ -201,6 +201,10 @@ class helix_generator(object):
 
 
     def single_random_momentum(self, intercept = 0.0):
+        if intercept<-2332.0: # limits in y-axis allows at least three cells to fire
+            intercept = -2332.0
+        elif intercept>2332.0:
+            intercept = 2332.0
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
 
         py = random.uniform(-0.1,0.1) # random momenta x, y 
