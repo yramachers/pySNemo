@@ -96,6 +96,7 @@ class Particle(object):
         self.angles = angles
 
 
+
 class tracker_hit(object):
     """
     The tracker Geiger cylinder contains data after calibration.
@@ -293,22 +294,26 @@ class trueparticle(object):
         return s
 
 
+
 class toytruth(object):
     """ Toy simulation truth storage from file. Holds 6 parameter
     and an id counter. The 6 numbers make up originally a euclid line3 object
     but can be used for other geometric structures too, like a helix.
     """
-    def __init__(self, id, par0, par1, par2, par3, par4, par5):
+    def __init__(self, id, par, bplist):
         self.id = id
-        vec = euclid.Vector3(par0, par1, par2)
-        pt = euclid.Point3(par3, par4, par5)
+        self.bplist = bplist # contains break points (bpx,bpy,bplayer) if any
+        vec = euclid.Vector3(par[0], par[1], par[2])
+        pt = euclid.Point3(par[3], par[4], par[5])
         self.line = euclid.Line3(pt,vec) # convenience, not useful for helix truth
-        self.parstore = (par0, par1, par2, par3, par4, par5) # in case the bare data is requested
+        self.parstore = par # in case the bare data is requested
 
     def __str__(self):
         s = "Toy simulation truth data\n"
         s += 'id = %d '%self.id
         s += 'parameter: (%f, %f, %f, %f, %f, %f)\n'%self.parstore
+        for i in range(len(self.bplist)): # only if bplist not empty
+            s += 'break point x=%f, y=%f at layer %d.'%(self.bplist[i][0],self.bplist[i][1],self.bplist[i][2])
         return s
 
     def getLine(self):
@@ -317,3 +322,5 @@ class toytruth(object):
     def getParameters(self):
         return self.parstore # as tuple
 
+    def getbreakpointlist(self):
+        return self.bplist

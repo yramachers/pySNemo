@@ -536,6 +536,8 @@ class ToySimRun(object):
         self.datastruct.pointx = ROOT.std.vector('double')()
         self.datastruct.pointy = ROOT.std.vector('double')()
         self.datastruct.pointz = ROOT.std.vector('double')()
+        self.datastruct.breakpointx = ROOT.std.vector('double')()
+        self.datastruct.breakpointy = ROOT.std.vector('double')()
         self.datastruct.radius = ROOT.std.vector('double')()
         self.datastruct.wirex = ROOT.std.vector('double')()
         self.datastruct.wirey = ROOT.std.vector('double')()
@@ -544,6 +546,7 @@ class ToySimRun(object):
         self.datastruct.grid_side = ROOT.std.vector('int')()
         self.datastruct.grid_layer = ROOT.std.vector('int')()
         self.datastruct.grid_column = ROOT.std.vector('int')()
+        self.datastruct.break_layer = ROOT.std.vector('int')()
 
         self.tree.SetBranchAddress('dirx', ROOT.AddressOf(self.datastruct, "dirx") )
         self.tree.SetBranchAddress('diry', ROOT.AddressOf(self.datastruct, "diry") )
@@ -551,6 +554,8 @@ class ToySimRun(object):
         self.tree.SetBranchAddress('pointx', ROOT.AddressOf(self.datastruct, "pointx") )
         self.tree.SetBranchAddress('pointy', ROOT.AddressOf(self.datastruct, "pointy") )
         self.tree.SetBranchAddress('pointz', ROOT.AddressOf(self.datastruct, "pointz") )
+        self.tree.SetBranchAddress('breakpointx', ROOT.AddressOf(self.datastruct, "breakpointx") )
+        self.tree.SetBranchAddress('breakpointy', ROOT.AddressOf(self.datastruct, "breakpointy") )
         self.tree.SetBranchAddress('radius', ROOT.AddressOf(self.datastruct, "radius") )
         self.tree.SetBranchAddress('wirex', ROOT.AddressOf(self.datastruct, "wirex") )
         self.tree.SetBranchAddress('wirey', ROOT.AddressOf(self.datastruct, "wirey") )
@@ -559,6 +564,7 @@ class ToySimRun(object):
         self.tree.SetBranchAddress('grid_side', ROOT.AddressOf(self.datastruct, "grid_side") )
         self.tree.SetBranchAddress('grid_layer', ROOT.AddressOf(self.datastruct, "grid_layer") )
         self.tree.SetBranchAddress('grid_column', ROOT.AddressOf(self.datastruct, "grid_column") )
+        self.tree.SetBranchAddress('break_layer', ROOT.AddressOf(self.datastruct, "break_layer") )
 
 
         self.tree.GetEntry(index) # now self.datastruct is filled
@@ -606,6 +612,13 @@ class ToySimRun(object):
         """return list of truth objects used to create tracker hit data.
         """
         hits = []
+        bpcontainer = []
+        for i in range(self.datastruct.break_layer.size()):
+            bpx = self.datastruct.breakpointx[i]
+            bpy = self.datastruct.breakpointy[i]
+            bpl = self.datastruct.break_layer[i]
+            bpcontainer.append((bpx,bpy,bpl))
+
         for i in range(self.datastruct.dirx.size()):
             dirx = self.datastruct.dirx[i]
             diry = self.datastruct.diry[i]
@@ -614,10 +627,11 @@ class ToySimRun(object):
             pointy = self.datastruct.pointy[i]
             pointz = self.datastruct.pointz[i]
             
-            gg = EDM.toytruth(i,dirx,diry,dirz,pointx,pointy,pointz) # from edm
+            par = (dirx, diry, dirz, pointx, pointy, pointz)
+            gg = EDM.toytruth(i,par,bpcontainer) # from edm
 
             hits.append(gg)
-            
+                
         return hits
 
 

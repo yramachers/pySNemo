@@ -28,6 +28,8 @@ ROOT.gROOT.ProcessLine(
    vector<double>* pointx;\
    vector<double>* pointy;\
    vector<double>* pointz;\
+   vector<double>* breakpointx;\
+   vector<double>* breakpointy;\
    vector<double>* radius;\
    vector<double>* wirex;\
    vector<double>* wirey;\
@@ -36,6 +38,7 @@ ROOT.gROOT.ProcessLine(
    vector<int>*    grid_side;\
    vector<int>*    grid_layer;\
    vector<int>*    grid_column;\
+   vector<int>*    break_layer;\
 };");
 
 ROOT.gROOT.ProcessLine(

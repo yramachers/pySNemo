@@ -1,4 +1,5 @@
 import math
+import random
 import numpy as np
 from scipy.ndimage import label
 import ROOT as root
@@ -12,6 +13,8 @@ root.gROOT.ProcessLine(
    vector<double>* pointx;\
    vector<double>* pointy;\
    vector<double>* pointz;\
+   vector<double>* breakpointx;\
+   vector<double>* breakpointy;\
    vector<double>* radius;\
    vector<double>* wirex;\
    vector<double>* wirey;\
@@ -20,6 +23,7 @@ root.gROOT.ProcessLine(
    vector<int>*    grid_side;\
    vector<int>*    grid_layer;\
    vector<int>*    grid_column;\
+   vector<int>*    break_layer;\
 };");
 
 
@@ -70,10 +74,10 @@ def cleanpicture(c, r, info, yintercept):
         return collection[pick]
 
 
-Nsims = 1 # Number of simulated lines
+Nsims = 1000 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
-file = root.TFile("singlerighthelix.tsim","recreate")
+file = root.TFile("/tmp/single_vertex_helix.tsim","recreate")
 tree = root.TTree("hit_tree","Hit data")
 tree.SetDirectory(file)
 
@@ -84,6 +88,8 @@ dataStruct.dirz = root.std.vector('double')()
 dataStruct.pointx = root.std.vector('double')()
 dataStruct.pointy = root.std.vector('double')()
 dataStruct.pointz = root.std.vector('double')()
+dataStruct.bpointx = root.std.vector('double')()
+dataStruct.bpointy = root.std.vector('double')()
 dataStruct.radius = root.std.vector('double')()
 dataStruct.wirex = root.std.vector('double')()
 dataStruct.wirey = root.std.vector('double')()
@@ -92,6 +98,7 @@ dataStruct.gridid = root.std.vector('int')()
 dataStruct.gridside = root.std.vector('int')()
 dataStruct.gridlayer = root.std.vector('int')()
 dataStruct.gridcolumn = root.std.vector('int')()
+dataStruct.breaklayer = root.std.vector('int')()
 
 tree.Branch('dirx', dataStruct.dirx)
 tree.Branch('diry', dataStruct.diry)
@@ -99,6 +106,8 @@ tree.Branch('dirz', dataStruct.dirz)
 tree.Branch('pointx', dataStruct.pointx)
 tree.Branch('pointy', dataStruct.pointy)
 tree.Branch('pointz', dataStruct.pointz)
+tree.Branch('breakpointx', dataStruct.bpointx)
+tree.Branch('breakpointy', dataStruct.bpointy)
 tree.Branch('radius', dataStruct.radius)
 tree.Branch('wirex',  dataStruct.wirex)
 tree.Branch('wirey',  dataStruct.wirey)
@@ -107,67 +116,71 @@ tree.Branch('grid_id', dataStruct.gridid)
 tree.Branch('grid_side', dataStruct.gridside)
 tree.Branch('grid_layer', dataStruct.gridlayer)
 tree.Branch('grid_column', dataStruct.gridcolumn)
+tree.Branch('break_layer', dataStruct.breaklayer)
 
 wgr = ML.demonstratorgrid()
 tgen = ML.helix_generator() # only 2D helices!
 yinterc = 0.0
-struc = tgen.single_random_momentum(yinterc) # x=0 fixed for this generator
 
-cells, radii = wgr.hits(struc, 1) # right tracker half
-info = wgr.wireinfo
+for i in range(Nsims):
+    struc = tgen.single_random_momentum(yinterc) # x=0 fixed for this generator
+
+    lrtracker = random.randint(0,1)
+    cells, radii = wgr.hits(struc, lrtracker) # left/right tracker half
+    info = wgr.wireinfo
 
 
-file.cd()
-# Prepare data structure for this line
-dataStruct.dirx.clear()
-dataStruct.diry.clear()
-dataStruct.dirz.clear()
-dataStruct.pointx.clear()
-dataStruct.pointy.clear()
-dataStruct.pointz.clear()
-dataStruct.radius.clear()
-dataStruct.wirex.clear()
-dataStruct.wirey.clear()
-dataStruct.wirez.clear()
-dataStruct.gridid.clear()
-dataStruct.gridside.clear()
-dataStruct.gridlayer.clear() 
-dataStruct.gridcolumn.clear()
+    file.cd()
+    # Prepare data structure for this line
+    dataStruct.dirx.clear()
+    dataStruct.diry.clear()
+    dataStruct.dirz.clear()
+    dataStruct.pointx.clear()
+    dataStruct.pointy.clear()
+    dataStruct.pointz.clear()
+    dataStruct.bpointx.clear()
+    dataStruct.bpointy.clear()
+    dataStruct.radius.clear()
+    dataStruct.wirex.clear()
+    dataStruct.wirey.clear()
+    dataStruct.wirez.clear()
+    dataStruct.gridid.clear()
+    dataStruct.gridside.clear()
+    dataStruct.gridlayer.clear() 
+    dataStruct.gridcolumn.clear()
+    dataStruct.breaklayer.clear()
 
-# save the geometry truth data
-# save a helix as parameter set
-refp = struc.referencePoint # triplet
-mom  = struc.momentum       # triplet, z=0 by default
-charge = struc.charge       # number
-dataStruct.dirx.push_back(mom[0]) # momenta in here
-dataStruct.diry.push_back(mom[1])
-dataStruct.dirz.push_back(charge) # use dirz for charge
-dataStruct.pointx.push_back(refp[0]) # reference point here
-dataStruct.pointy.push_back(refp[1])
-dataStruct.pointz.push_back(refp[2])
+    # save the geometry truth data
+    # save a helix as parameter set
+    refp = struc.referencePoint # triplet
+    mom  = struc.momentum       # triplet, z=0 by default
+    charge = struc.charge       # number
+    dataStruct.dirx.push_back(mom[0]) # momenta in here
+    dataStruct.diry.push_back(mom[1])
+    dataStruct.dirz.push_back(charge) # use dirz for charge
+    dataStruct.pointx.push_back(refp[0]) # reference point here
+    dataStruct.pointy.push_back(refp[1])
+    dataStruct.pointz.push_back(refp[2])
 
-print 'for helix: '
-print struc
-print info
-if len(info): # only if there is any data at all
-    ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
+    if len(info): # only if there is any data at all
+        ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
 
-print 'entries: %d'%len(ninfo)
-for w,r,mi in zip(ncells, nradii, ninfo):
-    dataStruct.radius.push_back(r)
-    dataStruct.wirex.push_back(w[0])
-    dataStruct.wirey.push_back(w[1])
-    dataStruct.wirez.push_back(0.0)
-    dataStruct.gridid.push_back(0)
-    side = mi[0] # wire side
-    row = mi[1] # wire column
-    col = mi[2] # wire layer
-    dataStruct.gridlayer.push_back(row)
-    dataStruct.gridcolumn.push_back(col)
-    dataStruct.gridside.push_back(side)
-    print mi
+    counter = 0
+    for w,r,mi in zip(ncells, nradii, ninfo):
+        dataStruct.radius.push_back(r)
+        dataStruct.wirex.push_back(w[0])
+        dataStruct.wirey.push_back(w[1])
+        dataStruct.wirez.push_back(0.0)
+        dataStruct.gridid.push_back(counter)
+        side = mi[0] # wire side
+        row = mi[1] # wire column
+        col = mi[2] # wire layer
+        dataStruct.gridlayer.push_back(row)
+        dataStruct.gridcolumn.push_back(col)
+        dataStruct.gridside.push_back(side)
+        counter += 1 # count up all hits for entire event
 
-tree.Fill() # data structure fully filled, lines done
+    tree.Fill() # data structure fully filled, lines done
 
 tree.Write() # write all lines to disk
 file.Close()

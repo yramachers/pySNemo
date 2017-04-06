@@ -188,7 +188,7 @@ class helix_generator(object):
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
 
         py = random.uniform(-0.1,0.1) # random momenta x, y 
-        px = random.uniform(0.4,1.4)
+        px = random.uniform(0.3,1.4)
         pz = 0.0 # try only 2D on wire distance
         momentum = (px,py,pz) # unit [MeV/c]
 
