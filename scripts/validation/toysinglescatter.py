@@ -31,8 +31,8 @@ def remove_hits(fromlayer, tolayer, cells, radii, info):
     infoarr = np.array(info)
     cellarr = np.array(cells)
     radarr  = np.array(radii)
-    for lay in range(fromlayer,tolayer):
-        indx = np.where(infoarr[:,2]!=lay)[0]
+    for lay in range(fromlayer,tolayer+1):
+        indx = np.where(infoarr[:,1]!=lay)[0]
         infoarr = infoarr[indx]
         cellarr = cellarr[indx]
         radarr  = radarr[indx]
@@ -90,7 +90,7 @@ for nsims in range(Nsims):
     lines = []
     bpoints = []
     blayer = []
-    scatter_angle = 10.0 # multiple scattering angle width [degrees]
+    scatter_angle = 3.0 # multiple scattering angle width [degrees]
     lrtracker = random.randint(0,1) # random left or right tracker side
 
     # random line slope for the first straight line
@@ -112,7 +112,7 @@ for nsims in range(Nsims):
     cellvariation = random.uniform(-21.0, 21.0)
     layerline = euclid.Line2(euclid.Point2(53.0 + bl*44.0 + cellvariation,0.0), euclid.Vector2(0.0,1.0))
     breakpoint = original.intersect(layerline)
-    c, r, i = remove_hits(0, bl, cells, radii, info) # return numpy arrays
+    c, r, i = remove_hits(bl, 8, cells, radii, info) # return numpy arrays
     bpoints.append((breakpoint.x, breakpoint.y))
     blayer.append(bl)
     
@@ -126,7 +126,7 @@ for nsims in range(Nsims):
     ncells, nradii = wgr.hits(nextdummy, lrtracker) # left/right tracker half
     ninfo = wgr.wireinfo
     if len(ninfo)>1:
-        c2, r2, i2 = remove_hits(bl, 8, ncells, nradii, ninfo) # return numpy arrays
+        c2, r2, i2 = remove_hits(0, bl-1, ncells, nradii, ninfo) # return numpy arrays
 
         allcells = np.concatenate((c, c2)) # concatenate
         allradii = np.concatenate((r, r2))
