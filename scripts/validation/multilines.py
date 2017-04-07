@@ -108,7 +108,30 @@ class demonstratorgrid(object):
             cells, radius = self.hits(l,s)
             cluster[counter+1] = (cells, radius, self.wireinfo)
             
+        if len(cluster)>1:
+            return self.remove_doubles(cluster)
+        else:
+            return cluster
+
+
+    def remove_doubles(self, cluster):
+        for k in range(1,len(cluster)): # keys start at 1
+            for pos, mi in enumerate(cluster[k][2]): # check info entries against all of next cluster entry
+                nextinfo = np.array(cluster[k+1][2])  # from modified next cluster
+                dublet = list(mi[-2:]) # comes as tuple -> list convert
+                nilist = nextinfo[:,-2:].tolist() # smart slicing, back to list
+
+                if dublet in nilist: # found a double entry
+                    indx = nilist.index(dublet) # first entry; should be only one
+                    nextradius = cluster[k+1][1][indx] # choose according to radius
+                    if cluster[k][1][pos] > nextradius: # smaller wins
+                        cluster[k][1][pos] = nextradius # in-place change
+                    cluster[k+1][0].pop(indx) # change cluster k+1
+                    cluster[k+1][1].pop(indx)
+                    cluster[k+1][2].pop(indx)
+
         return cluster
+
 
 
 
