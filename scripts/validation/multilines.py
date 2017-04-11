@@ -118,8 +118,10 @@ class demonstratorgrid(object):
         for k in range(1,len(cluster)): # keys start at 1
             for pos, mi in enumerate(cluster[k][2]): # check info entries against all of next cluster entry
                 nextinfo = np.array(cluster[k+1][2])  # from modified next cluster
-                dublet = list(mi[-2:]) # comes as tuple -> list convert
-                nilist = nextinfo[:,-2:].tolist() # smart slicing, back to list
+                if len(nextinfo)<1:
+                    break # nothing to compare to
+                dublet = list(mi) # comes as tuple -> list convert
+                nilist = nextinfo[:,-3:].tolist() # smart slicing, back to list
 
                 if dublet in nilist: # found a double entry
                     indx = nilist.index(dublet) # first entry; should be only one
@@ -166,9 +168,7 @@ class track_generator(object):
 
     def single_line_random_slope(self, intercept = 0.0):
         # no container needed
-        angle = pi/2.0
-        while (angle>(0.5*pi-0.08) or angle<(-0.5*pi+0.08)):# cut vertical out
-            angle = 0.5*random.vonmisesvariate(0.0,0) #uniform angle (0,pi)
+        angle = random.uniform(-pi*0.5+0.17, pi*0.5-0.17) # taking vertical out
         sl = tan(angle)
         return self.single_line_manual(sl, intercept)
 

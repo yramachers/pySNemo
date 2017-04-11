@@ -65,7 +65,7 @@ class ImageSegmentation(object):
 
         # check left tracker
         leftlabels, anyleft = label(left,anyslope)
-        print 'initial connected structures left = ',anyleft
+        #print 'initial connected structures left = ',anyleft
         if anyleft>0:
             leftcollection = self._all_connected(leftlabels, anyleft) # get collection of all singly connected segments
             for ncls, left in enumerate(leftcollection): # left is a full image with one structure contained according to label
@@ -73,7 +73,7 @@ class ImageSegmentation(object):
 
         # check right tracker
         rightlabels, anyright = label(right,anyslope)
-        print 'initial connected structures right = ',anyright
+        #print 'initial connected structures right = ',anyright
         if anyright>0: 
             rightcollection = self._all_connected(rightlabels, anyright) # get collection of all singly connected segments
             for ncls, right in enumerate(rightcollection):
@@ -124,7 +124,8 @@ class ImageSegmentation(object):
         anyslope = [[1,1,1], [1,1,1], [1,1,1]] # any slope structure
 
         split, lstore =  self._splitpoints(data) # check for splits in a connected structure
-
+        #print 'after splitpoints: ',split
+        #print lstore
         # case studies
         if split:
             if (2,2) in lstore: # multi split of singly connected structure
@@ -137,7 +138,7 @@ class ImageSegmentation(object):
                 if ll<1 or rr<1:
                     continue # don't consider empty data patches, next loop
 
-                if multiflag and counter==lstore.index((2,2)):
+                if multiflag and counter==lstore.index((2,2)) and counter>0:
                     # found the multi structure before switch
                     #print 'found switch to (2,2) at %d'%counter
                     lsplit, nstruct1 = label(data[:,0:1],anyslope) # check borders, left 

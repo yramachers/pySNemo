@@ -31,18 +31,39 @@ def remove_hits(fromlayer, tolayer, cells, radii, info):
     infoarr = np.array(info)
     cellarr = np.array(cells)
     radarr  = np.array(radii)
-    for lay in range(fromlayer,tolayer+1):
+    for lay in range(fromlayer,tolayer):
         indx = np.where(infoarr[:,1]!=lay)[0]
         infoarr = infoarr[indx]
         cellarr = cellarr[indx]
         radarr  = radarr[indx]
-    return cellarr, radarr, infoarr
+    return cellarr.tolist(), radarr.tolist(), infoarr.tolist()
+
+
+def remove_doubles(cluster):
+    k=1 # keys start at 1
+    if len(cluster[k][2])>0 and len(cluster[k+1][2])>0: # one empty = no doubles
+        for pos, mi in enumerate(cluster[k][2]): # check info entries against all of next cluster entry
+            nextinfo = np.array(cluster[k+1][2])  # from modified next cluster
+            if len(nextinfo)<1:
+                break # nothing to compare to
+            dublet = list(mi[-2:]) # comes as tuple -> list convert
+            nilist = nextinfo[:,-2:].tolist() # smart slicing, back to list
+            
+            if dublet in nilist: # found a double entry
+                indx = nilist.index(dublet) # first entry; should be only one
+                nextradius = cluster[k+1][1][indx] # choose according to radius
+                if cluster[k][1][pos] > nextradius: # smaller wins
+                    cluster[k][1][pos] = nextradius # in-place change
+                cluster[k+1][0].pop(indx) # change cluster k+1
+                cluster[k+1][1].pop(indx)
+                cluster[k+1][2].pop(indx)
+    return cluster
 
 
 Nsims = 1000 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
-file = root.TFile("/tmp/singlebreakp.tsim","recreate")
+file = root.TFile("/tmp/single_breakp.tsim","recreate")
 tree = root.TTree("hit_tree","Hit data")
 tree.SetDirectory(file)
 
@@ -87,101 +108,107 @@ wgr = ML.demonstratorgrid()
 tgen = ML.track_generator()
 
 for nsims in range(Nsims):
+    cluster = { }
     lines = []
     bpoints = []
     blayer = []
     scatter_angle = 3.0 # multiple scattering angle width [degrees]
     lrtracker = random.randint(0,1) # random left or right tracker side
+    sign = -1*(-1)**lrtracker
 
     # random line slope for the first straight line
-    angle = math.pi/2.0
-    while (angle>(0.5*math.pi-0.08) or angle<(-0.5*math.pi+0.08)):# cut vertical out
-        angle = 0.5*random.vonmisesvariate(0.0,0) #uniform angle (0,pi)
+    angle = random.uniform(-math.pi*0.5+0.17, math.pi*0.5-0.17) # taking vertical out
     sl = math.tan(angle)
 
     # make a first line with cells etc.
     dummy = tgen.single_line_manual(sl,0.0) # Line3 with vertex on foil at x=0,y=0
     cells, radii = wgr.hits(dummy, lrtracker) # left/right tracker half
     info = wgr.wireinfo
-    # 2D projection not an issue since is in z=0 plane by construction
-    original = euclid.Line2(euclid.Point2(dummy.p.x, dummy.p.y), euclid.Vector2(dummy.v.x, dummy.v.y))
-    lines.append(dummy)
+    if len(info)>0:
+        # 2D projection not an issue since is in z=0 plane by construction
+        original = euclid.Line2(euclid.Point2(dummy.p.x, dummy.p.y), euclid.Vector2(dummy.v.x, dummy.v.y))
+        lines.append(dummy)
 
-    # break first line and pick scatter angle for continuation
-    bl = random.randint(1,7) # tracker layer with break
-    cellvariation = random.uniform(-21.0, 21.0)
-    layerline = euclid.Line2(euclid.Point2(53.0 + bl*44.0 + cellvariation,0.0), euclid.Vector2(0.0,1.0))
-    breakpoint = original.intersect(layerline)
-    c, r, i = remove_hits(bl, 8, cells, radii, info) # return numpy arrays
-    bpoints.append((breakpoint.x, breakpoint.y))
-    blayer.append(bl)
+        # break first line and pick scatter angle for continuation
+        bl = random.randint(1,7) # tracker layer with break
+        cellvariation = random.uniform(-21.0, 21.0)
+        layerline = euclid.Line2(euclid.Point2(sign*53.0 + sign*bl*44.0 + cellvariation,0.0), euclid.Vector2(0.0,1.0))
+        breakpoint = original.intersect(layerline)
+        bpoints.append((breakpoint.x, breakpoint.y))
+        blayer.append(bl)
+        c, r, i = remove_hits(bl+1, 9, cells, radii, info) # return numpy arrays
+        cluster[1] = (c, r, i)
     
-    scat_angle = random.gauss(0.0,scatter_angle*math.pi/180.0) # random scattering angle
+        scat_angle = random.gauss(0.0,scatter_angle*math.pi/180.0) # random scattering angle
 
-    # next line continuing from breakpoint
-    angle += scat_angle # altering original slope angle with new angle
-    sl = math.tan(angle)
-    nextdummy = euclid.Line3(euclid.Point3(breakpoint.x, breakpoint.y,0.0), euclid.Vector3(1.0, sl, 0.0))
-    lines.append(nextdummy)
-    ncells, nradii = wgr.hits(nextdummy, lrtracker) # left/right tracker half
-    ninfo = wgr.wireinfo
-    if len(ninfo)>1:
-        c2, r2, i2 = remove_hits(0, bl-1, ncells, nradii, ninfo) # return numpy arrays
+        # next line continuing from breakpoint
+        angle += scat_angle # altering original slope angle with new angle
+        sl = math.tan(angle)
+        nextdummy = euclid.Line3(euclid.Point3(breakpoint.x, breakpoint.y,0.0), euclid.Vector3(1.0, sl, 0.0))
+        lines.append(nextdummy)
+        ncells, nradii = wgr.hits(nextdummy, lrtracker) # left/right tracker half
+        ninfo = wgr.wireinfo
+        if len(ninfo)>0:
+            c2, r2, i2 = remove_hits(0, bl, ncells, nradii, ninfo) # return numpy arrays
+            cluster[2] = (c2, r2, i2)
+            cluster = remove_doubles(cluster)
 
-        allcells = np.concatenate((c, c2)) # concatenate
-        allradii = np.concatenate((r, r2))
-        allinfo  = np.concatenate((i, i2))
-        
-        file.cd()
-        # Prepare data structure for this line
-        dataStruct.dirx.clear()
-        dataStruct.diry.clear()
-        dataStruct.dirz.clear()
-        dataStruct.pointx.clear()
-        dataStruct.pointy.clear()
-        dataStruct.pointz.clear()
-        dataStruct.bpointx.clear()
-        dataStruct.bpointy.clear()
-        dataStruct.radius.clear()
-        dataStruct.wirex.clear()
-        dataStruct.wirey.clear()
-        dataStruct.wirez.clear()
-        dataStruct.gridid.clear()
-        dataStruct.gridside.clear()
-        dataStruct.gridlayer.clear() 
-        dataStruct.gridcolumn.clear()
-        dataStruct.breaklayer.clear()
-        
-        for entry in lines: # truth lines
-            dataStruct.dirx.push_back(entry.v.x)
-            dataStruct.diry.push_back(entry.v.y)
-            dataStruct.dirz.push_back(entry.v.z)
-            dataStruct.pointx.push_back(entry.p.x)
-            dataStruct.pointy.push_back(entry.p.y)
-            dataStruct.pointz.push_back(entry.p.z)
-            
-        for bp, bl in zip(bpoints, blayer):
-            dataStruct.bpointx.push_back(bp[0])
-            dataStruct.bpointy.push_back(bp[1])
-            dataStruct.breaklayer.push_back(bl)
+            allcells = cluster[1][0] + cluster[2][0] # concatenate
+            allradii = cluster[1][1] + cluster[2][1] # concatenate
+            allinfo  = cluster[1][2] + cluster[2][2] # concatenate
 
-    
-        counter = 0
-        for w,r,mi in zip(allcells.tolist(),allradii.tolist(),allinfo.tolist()):
-            dataStruct.radius.push_back(r)
-            dataStruct.wirex.push_back(w[0])
-            dataStruct.wirey.push_back(w[1])
-            dataStruct.wirez.push_back(0.0)
-            dataStruct.gridid.push_back(counter)
-            side = mi[0] # wire side
-            row = mi[1] # wire column
-            col = mi[2] # wire layer
-            dataStruct.gridlayer.push_back(row)
-            dataStruct.gridcolumn.push_back(col)
-            dataStruct.gridside.push_back(side) # not covered yet 
-            counter += 1 # count up all hits for entire event
+            file.cd()
+            # Prepare data structure for this line
+            dataStruct.dirx.clear()
+            dataStruct.diry.clear()
+            dataStruct.dirz.clear()
+            dataStruct.pointx.clear()
+            dataStruct.pointy.clear()
+            dataStruct.pointz.clear()
+            dataStruct.bpointx.clear()
+            dataStruct.bpointy.clear()
+            dataStruct.radius.clear()
+            dataStruct.wirex.clear()
+            dataStruct.wirey.clear()
+            dataStruct.wirez.clear()
+            dataStruct.gridid.clear()
+            dataStruct.gridside.clear()
+            dataStruct.gridlayer.clear() 
+            dataStruct.gridcolumn.clear()
+            dataStruct.breaklayer.clear()
 
-        tree.Fill() # data structure fully filled, lines done
+            for entry in lines: # truth lines
+                dataStruct.dirx.push_back(entry.v.x)
+                dataStruct.diry.push_back(entry.v.y)
+                dataStruct.dirz.push_back(entry.v.z)
+                dataStruct.pointx.push_back(entry.p.x)
+                dataStruct.pointy.push_back(entry.p.y)
+                dataStruct.pointz.push_back(entry.p.z)
+
+            for bp, bl in zip(bpoints, blayer):
+                dataStruct.bpointx.push_back(bp[0])
+                dataStruct.bpointy.push_back(bp[1])
+                dataStruct.breaklayer.push_back(bl)
+
+
+            counter = 0
+            for w,r,mi in zip(allcells,allradii,allinfo):
+                dataStruct.radius.push_back(r)
+                dataStruct.wirex.push_back(w[0])
+                dataStruct.wirey.push_back(w[1])
+                dataStruct.wirez.push_back(0.0)
+                dataStruct.gridid.push_back(counter)
+                side = mi[0] # wire side
+                row = mi[1] # wire column
+                col = mi[2] # wire layer
+                dataStruct.gridlayer.push_back(row)
+                dataStruct.gridcolumn.push_back(col)
+                dataStruct.gridside.push_back(side) # not covered yet 
+                counter += 1 # count up all hits for entire event
+
+            tree.Fill() # data structure fully filled, lines done
+        else:
+            continue
     else:
         continue
     
