@@ -22,16 +22,6 @@ def print_event_info(event):
             print k
 	
 
-def print_number_of_hits(event):
-	''' 
-	This function prints the number of geiger cells in the
-	raw hit selection of the event as read from disk.
-	'''
-	d = event.getKeyValue('raw')
-	hits = d['gg']
-	print 'Number of geiger entries: ',len(hits)
-
-
 def print_number_of_clusters(event):
 	''' 
 	This function prints the number of clusters for key cluster_out.
@@ -44,7 +34,7 @@ def print_number_of_clusters(event):
 			print hit.meta_info
 				
 
-def print_number_of_entries(event):
+def print_gg_entries(event):
 	''' 
 	This function prints the number of entries in all available keys 
 	'''
@@ -52,25 +42,13 @@ def print_number_of_entries(event):
 	print 'Number of dictionaries: ',len(d)
 	if 'gg' in d:
 		hits = d['gg']
-		print 'Number of gg entries: ',len(hits)
-	if 'ggtruth' in d:
-		hits = d['ggtruth']
-		print 'Number of gg truth entries: ',len(hits)
-	if 'calo_hits' in d:
-		hits = d['calo_hits']
-		print 'Number of calo entries: ',len(hits)
-	if 'calotruth' in d:
-		hits = d['calotruth']
-		print 'Number of calo truth entries: ',len(hits)
-	if 'muonpaddles' in d:
-		hits = d['muonpaddles']
-		print 'Number of muon paddle entries: ',len(hits)
-	v = d['vertex']
-	print 'Number of vertex entries: ',len(v)
-	pa = d['trueparticle']
-	print 'Number of prim particles entries: ',len(pa)
+		for hit in hits:
+			print hit.meta_info
+	if 'truthsim' in d:
+		truth = d['truthsim']
+		for toytruth in truth:
+			print toytruth
 
- 
 
 def check_sweep(event):
 	cluster_dict = event.getKeyValue('sweeping_out') # returns dict
@@ -101,11 +79,15 @@ def print_sweeping(event):
 
 if __name__ == '__main__':
 	# Specify the file we want to run over
-	readfile  = '/storage/epp2/phsdaq/Sandbox/Falaise/trunk/workdir/DemoTestData/demo_se82_1000.root'
+	#readfile  = '/storage/epp2/phsdaq/Sandbox/Falaise/trunk/workdir/DemoTestData/demo_se82_1000.root'
 	#readfile  = '/storage/epp2/phsdaq/Sandbox/Falaise/trunk/workdir/DemoTestData/demo106_e1MeV.root'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/python/scripts/validation/double_atvertex.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/double_Vvertex.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/single_vertex_helix.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/single_breakp.tsim'
 
 
-	# Instantiate a dbscan reconstruction object
+	# Instantiate an image segmentation object
 	imseg = ImageSegService(None,'cluster_out')
 
 	# set up CA Service
@@ -124,7 +106,7 @@ if __name__ == '__main__':
 
 	# Build a pipeline
 	pipeline = Pipeline(print_event_info,
-			    print_number_of_hits,
+			    print_gg_entries,
 			    imseg,
 			    print_number_of_clusters,
 			    ca1,
@@ -135,7 +117,7 @@ if __name__ == '__main__':
 			    print_sweeping)
 
 	# Create an event loop, giving it the filename and the function to run
-	loop = EventLoop(readfile, operation=pipeline, first_event=0, last_event=100)
+	loop = EventLoop(readfile, operation=pipeline, first_event=0, last_event=10)
 
 	# Run the event loop
 	loop.run()

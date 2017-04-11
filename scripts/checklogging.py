@@ -69,34 +69,6 @@ def print_number_of_clusters(event):
 			print hit.meta_info
 				
 
-def print_number_of_entries(event):
-	''' 
-	This function prints the number of entries in all available keys 
-	'''
-	d = event.getKeyValue('raw')
-	print 'Number of dictionaries: ',len(d)
-	if 'gg' in d:
-		hits = d['gg']
-		print 'Number of gg entries: ',len(hits)
-	if 'ggtruth' in d:
-		hits = d['ggtruth']
-		print 'Number of gg truth entries: ',len(hits)
-	if 'calo_hits' in d:
-		hits = d['calo_hits']
-		print 'Number of calo entries: ',len(hits)
-	if 'calotruth' in d:
-		hits = d['calotruth']
-		print 'Number of calo truth entries: ',len(hits)
-	if 'muonpaddles' in d:
-		hits = d['muonpaddles']
-		print 'Number of muon paddle entries: ',len(hits)
-	v = d['vertex']
-	print 'Number of vertex entries: ',len(v)
-	pa = d['trueparticle']
-	print 'Number of prim particles entries: ',len(pa)
-
- 
-
 def check_sweep(event):
 	cluster_dict = event.getKeyValue('sweeping_out') # returns dict
 	cluster_list = event.getKeyValue('sweeping_out_noise') # returns list
@@ -134,7 +106,7 @@ if __name__ == '__main__':
 	#readfile  = '/storage/epp2/phsdaq/Sandbox/Falaise/trunk/workdir/DemoTestData/demo106_e1MeV.root'
 
 
-	# Instantiate a dbscan reconstruction object
+	# Instantiate an image segmentation object
 	imseg = ImageSegService(None,'cluster_out')
 
 	# set up CA Service
