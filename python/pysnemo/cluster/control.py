@@ -24,15 +24,19 @@ cluster.control - Control for clustering algorithms
 
 This module provides pipeline services for performing
 density-based clustering using DBSCAN as well as the set-cluster idea, a 
-point cloud service and image segmentation.
+point cloud service, filament finder and image segmentation.
 
 """
 
-__all__ = ['DBSCANService','NNSetClusterService','FlattenNN','ImageSegService']
+__all__ = ['DBSCANService','NNSetClusterService','FlattenNN','PointCloudService','ImageSegService','FilamentService']
 
 from pysnemo.cluster.dbscan import dbscan, dbprocess
+#from pysnemo.cluster.leg_cluster import ltransform, line, line_candidate
+#from pysnemo.cluster.legendre import Legendre_lines, Legendre_circles
 from pysnemo.cluster.nnsetcluster import NNSetCluster
+from pysnemo.cluster.pointcloud import PointCloud
 from pysnemo.cluster.imagesegmentation import ImageSegmentation
+from pysnemo.cluster.filamentsearch import FilamentCluster
 import logging
 
 class DBSCANService(object):
@@ -178,6 +182,121 @@ class DBSCANService(object):
 
 
 		
+
+
+
+class LegendreService(object):
+	"""
+	Pipeline entry for Legendre clustering
+
+	Uses the raw hits 
+	which is to be in the form list of hits, i.e. [(x,y,z,Q), ...]
+
+	See the leg_cluster.py file for details of output format as a 
+	dictionary. Should contain line_candidate objects, defined in 
+	leg_cluster.py.
+	"""
+	def __init__(self, inboxkey, outboxkey, magnet=False):
+		"""
+		Initialise a LegendreService with the parameters given
+		inboxkey : the key to a list of tuples as input hits
+		            for processing - None
+			    means - get the raw hits.
+			    Must be list og geigercylinder objects
+		outboxkey : output key in the event dictionary
+		"""
+		self.logger = logging.getLogger('eventloop.LegendreService')
+		self.clusterflag = False # flag cluster data
+		self.inkey = inboxkey
+		self.outkey = outboxkey
+		self.flag = magnet # default to lines
+		# write logging info
+		self.logger.info('Input key: %s',self.inkey)
+		self.logger.info('Output key: %s',self.outkey)
+		self.logger.info('Magnet flag: %s',self.flag)
+	
+	def __repr__(self):
+		s = 'Legendre Cluster Service'
+		return s
+
+
+	def __call__(self, event):
+		"""
+		Process an event with leg_cluster and output the clustered
+		hits to the outbox key
+		"""
+		# Get input data according to keystring
+		if (self.inkey is not None):
+			if (event.hasKey(self.inkey)):
+				data = event.getKeyValue(self.inkey)
+				if isinstance(data,dict):
+					self.clusterflag = True
+			else:
+				print 'Error in pipeline: key {0} not in event'.format(self.inkey)
+				return None
+		else:
+			data = event.getTrackerData()
+
+		if self.clusterflag:
+			cand = {}
+			noise = {}
+			for k,v in data.iteritems():
+				c, n = self.process(v) # returns lists
+				cand[k] = c
+				noise[k] = n
+		else:
+			cand, noise = self.process(data)
+
+		output = { }
+		noiseout = []
+		# build the dictionary of clusters for the event storage
+		# full unfolding of clusters in dictionaries
+
+		# output holds list of TrackCandidate objects
+		# unwrap into wire_lists = list of geiger cylinders
+		# noise holds list of geiger cylinders
+		if self.clusterflag:
+			counter = 1
+			for k,v in cand.iteritems():
+				for entry in v:
+					for trc in entry:
+						for gglist in trc.wire_list:
+							output[counter] = gglist
+							counter += 1
+			counter = 1
+			for k,v in noise.iteritems():
+				for entry in v:
+					noiseout.append(entry)
+		else:
+			for i,entry in enumerate(cand):
+				for gglist in entry.wire_list:
+					output[i+1] = gglist
+
+			for entry in noise:
+				noiseout.append(entry) 
+
+		# Then set the outboxkey
+		event.setKeyValue(self.outkey, output)
+
+		# store noise in event
+		nkey  = self.outkey+'_noise'
+		event.setKeyValue(nkey, noiseout)
+
+		# Finally, return the event object
+		return event
+
+
+
+	def process(self, fulldata):
+		if self.flag:
+			ll = Legendre_circles(fulldata)
+		else:
+			ll = Legendre_lines(fulldata)
+		ll.run()
+		return ll.getTracks(), ll.getNoise()
+
+
+
 
 class NNSetClusterService(object):
 	"""
@@ -359,6 +478,92 @@ class FlattenNN(object):
 
 
 
+class PointCloudService(object):
+	"""
+	Pipeline entry for preparing tangent point data for clustering
+
+	Uses the raw hits or clustered data.
+	"""
+	def __init__(self, inboxkey, outboxkey):
+		"""
+		Initialise a PointCloudService with the parameters given
+
+		inboxkey : the key to a list of tuples as input hits
+		            for processing with dbscan - None
+			    means - get the raw hits.
+			    Must be list of tracker_hit objects.
+		outboxkey : output key in the event dictionary
+		"""
+		self.logger = logging.getLogger('eventloop.PointCloudService')
+		self.inkey = inboxkey
+		self.outkey = outboxkey
+		self.clusterflag = False
+		# write logging info
+		self.logger.info('Input key: %s',self.inkey)
+		self.logger.info('Output key: %s',self.outkey)
+	
+	def __repr__(self):
+		s = 'PointCloud Service'
+		return s
+
+
+	def __call__(self, event):
+		"""
+		Process an event with PointCloud and output the 
+		tangent points to the outbox key
+		"""
+		# Get input data according to keystring
+		if (self.inkey is not None):
+			if (event.hasKey(self.inkey)):
+				data = event.getKeyValue(self.inkey)
+				if isinstance(data,dict):
+					self.clusterflag = True
+			else:
+				print 'Error in pipeline: key {0} not in event'.format(self.inkey)
+				return None
+		else:
+			data = event.getTrackerData()
+
+		if self.clusterflag:
+			cand = {}
+			for k,v in data.iteritems():
+				c = self.process(v) # returns lists
+				cand[k] = c
+		else:
+			if len(data)>0:
+				cand = self.process(data)
+			else:
+				event.setKeyValue(self.outkey, {})
+				return event
+
+		output = {}
+		# output dict holds list of dictionaries
+		if self.clusterflag:
+			counter = 1
+			for k,v in cand.iteritems():
+				output[counter] = v
+				counter += 1
+		else:
+			for i,entry in enumerate(cand):
+				output[i+1] = entry
+
+		# Then set the outboxkey
+		event.setKeyValue(self.outkey, output)
+
+		# Finally, return the event object
+		return event
+
+
+	def process(self,data):
+		# Now run PointCloud
+		pc = PointCloud(data)
+		out = pc.run()
+		return out
+
+
+
+
+
 class ImageSegService(object):
 	"""
 	Pipeline entry for image segmentation clustering
@@ -425,4 +630,76 @@ class ImageSegService(object):
 		imageseg = ImageSegmentation(data)
 		imageseg.run()
 		return imageseg.getClusters() # come as dictionary of numbered clusters
+
+
+
+
+
+class FilamentService(object):
+	"""
+	Pipeline entry for filament clustering
+
+	Uses the raw hits only and can serve as preparation clustering for 
+	more detailed clusterers subsequently.
+	"""
+	def __init__(self, inboxkey, outboxkey):
+		"""
+		Initialise a FilamentService with the parameters given
+
+		inboxkey : the key to a list of tuples as input hits
+		            for processing with ImageSegmentation - None
+			    means - get the raw hits.
+			    Must be list of tracker_hit objects.
+		outboxkey : output key in the event dictionary
+		"""
+		self.logger = logging.getLogger('eventloop.FilamentgService')
+		self.inkey = inboxkey
+		self.outkey = outboxkey
+
+		# write logging info
+		self.logger.info('Input key: %s',self.inkey)
+		self.logger.info('Output key: %s',self.outkey)
+	
+	def __repr__(self):
+		s = 'Filament Cluster Service'
+		return s
+
+
+	def __call__(self, event):
+		"""
+		Process an event with Filament Search and output the 
+		clusters to the outbox key
+		"""
+		# Get input data according to keystring
+		if (self.inkey is not None):
+			if (event.hasKey(self.inkey)):
+				data = event.getKeyValue(self.inkey)
+				if not isinstance(data,list):
+					print 'Error in pipeline: not a list type input data as expected for raw tracker hits.'
+					return None
+			else:
+				print 'Error in pipeline: key {0} not in event'.format(self.inkey)
+				return None
+		else:
+			data = event.getTrackerData()
+
+		if len(data)>0:
+			cand = self.process(data) # here call the filament search algorithm
+
+		else: # empty event
+			event.setKeyValue(self.outkey, {})
+			return event
+
+		# Then set the outboxkey
+		event.setKeyValue(self.outkey, cand)
+
+		# Finally, return the event object
+		return event
+
+
+	def process(self,data):
+		# Now run 
+		filament = FilamentCluster(data)
+		filament.run()
+		return filament.getClusters() # come as dictionary of numbered clusters
 

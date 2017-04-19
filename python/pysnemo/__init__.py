@@ -19,7 +19,7 @@
 # along with pySNemo.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-pySNemo: A package for reducing and analysing SupeNEMO data
+pySNemo: A package for reducing and analysing SuperNEMO data
 ============================================================
 
 Documentation is provided through the docstrings.
@@ -31,24 +31,23 @@ pySNemo provides the following subpackages:
 Subpackages
 -----------
 ::
-
+    ca_glue              --- merge two cellular automaton propagation direction clusters
+    cellular_automaton   --- cellular automaton clustering algorithm
+    fitter               --- helix and line fitting routines, produces trajectories
+    reconstruction       --- final step routines to end at Particle Track Data objects for analysis
     control              --- Control mechanisms for event processing.
     io                   --- Interfaces to persistant data formats.
     utility              --- Widely useful classes and functions.
-    cellular_automaton   --- specialised cellular automaton (CA) clusterer
-    ca_glue              --- finishes the CA clusterer
-    cluster              --- a few select clustering methods for reconstruction
-    graphtrack           --- convert raw data rings to trajectory candidates
-    fitter               --- various fitting options for trajectories
-    reconstruction       --- finishes reconstruction of fitted trajectories
+    cluster              --- clustering for reconstruction
+    graphtrack           --- convert raw data rings to hit candidates and produce possible paths
 
 
 Utility tools
 -------------
 ::
 
-    __version__    --- version string
+    __version__    --- pySNemo version string
 
 """
 
-__version__ = '0.3.1'
+__version__ = '0.1.2'
