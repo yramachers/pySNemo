@@ -144,7 +144,7 @@ class CellGenerator3D(object):
 		return points
 
 	def _simpleLR(self, pt, point):
-		return pt[self.x] < point[self.x]
+		return pt[self.x] <= point[self.x]
 
 	def _fullLR(self, pt, point):
 		return ((pt[self.x] < point[self.x])

@@ -27,6 +27,7 @@ smaller clusters to the main cluster candidates:
 
 """
 from numpy import array, where
+from scipy.spatial import KDTree
 from pysnemo.io.edm import tracker_hit
 
 __all__ = ['MergeXY','RoadSweeper']
@@ -103,13 +104,17 @@ class MergeXY(object):
 	def _merge(self):
 		temp = {}
 		klist = []
+		#print 'clusters in x: ',len(self.clsx)
+		#print 'clusters in y: ',len(self.clsy)
 		klist = self._maxkeys(self.clsx,klist)
+		#print 'clusters in x max keylist: ',klist
 
 		if len(klist)>0:
 			for i,entry in enumerate(klist,start=1):
 				temp[i] = self.clsx[entry]
 		klist = []
 		klist = self._maxkeys(self.clsy,klist)
+		#print 'clusters in y max keylist: ',klist
 
 		if len(klist)>0:
 			for j,entry in enumerate(klist,start=i+1):
@@ -118,7 +123,7 @@ class MergeXY(object):
 
 
 
-class RoadSweeper(object):
+class RoadSweeperOld(object):
 	'''
 	Road following along clusters and collecting left-over wire hits,
 	within one wire distance to clusters.
@@ -155,6 +160,7 @@ class RoadSweeper(object):
 
 
 	def getClusters(self):
+		# translate into gcylinder objects
 		geiger = {}
 		if len(self.out)<1:
 			return {},[]
@@ -187,11 +193,11 @@ class RoadSweeper(object):
  		#print 'in pair check wire is: ',wire.x,wire.y
 		warr = array(self.wirecoords)
 		# check on next in x 
-		indxup = where(abs(wire.x-warr[:,0])<45.0)[0]
+		indxup = where(abs(wire.x-warr[:,0])<46.0)[0]
 		sx = set(indxup)
  		#print 'in pair check sx: ',sx
 		# check on next in y
-		indyup = where(abs(wire.y-warr[:,1])<45.0)[0]
+		indyup = where(abs(wire.y-warr[:,1])<46.0)[0]
 		sy = set(indyup)
  		#print 'in pair check sy: ',sy
 		# check on next in z
@@ -200,6 +206,7 @@ class RoadSweeper(object):
 		# check on all conditions, logical 'and'
 		#ind = sxu.intersection(syu.intersection(szu)) 
 		ind = sx.intersection(sy)
+		#print 'set intersection: ',ind
 		return ind
 	
 
@@ -262,6 +269,7 @@ class RoadSweeper(object):
 				
 	def _sweep(self):
 		temp = {}
+		#print 'SWEEP: got %d clusters.'%len(self.cls)
 		for k,cl in self.cls.iteritems():
 			indlist = []
 			for entry in cl:
@@ -275,3 +283,97 @@ class RoadSweeper(object):
 
 		out = self._remove_duplicates(temp)
 		self._remove_duplicate_clusters(out) # sets self.out
+
+
+
+
+
+class RoadSweeper(object):
+	'''
+	Road following along clusters and collecting left-over wire hits,
+	within one wire distance to clusters.
+	'''
+	def __init__(self, data, raw_data):
+		"""Initialise a RoadSweeper object with  
+		dictionary of clusters of wire coordinates as input as well
+		as the full raw data of wires for sweeping. Deltaz is the 
+		max tolerance to count as a neighbour in z.
+		"""
+		self.cls = data
+		self.ggdata = raw_data
+		self.ggdatami = [trh.meta_info for trh in raw_data]
+		if len(data)<1:
+			print 'No data to sweep in RoadSweeper!'
+		else:
+			self._sweep()
+
+
+
+	def getClusters(self):
+		return self.out, self.noise
+	
+
+	def _remove_duplicate_clusters(self,temp):
+		metacl = {}
+		for k, v in temp.iteritems():
+			vshort = [trh.meta_info for trh in v]
+			metacl[k] = vshort
+		remove = []
+		ks = metacl.keys()
+		for i in range(len(ks)): # for all clusters
+			s1 = set(metacl[ks[i]])
+			for j in range(i+1,len(ks)): # test all others
+				s2 = set(metacl[ks[j]])
+				sd1 = s1.difference(s2)
+				sd2 = s2.difference(s1)
+				if len(sd1)<2: # diff of 1 wire max
+					# s1 is a sub-set
+					remove.append(ks[i]) # [0]=key
+				elif len(sd2)<2: # diff of 1 wire max
+					# s2 is a sub-set
+					remove.append(ks[j]) # [0]=key
+		#print 'duplicate remove remove has: ',remove
+		temp_out = {}
+		counter = 1
+		for k, v in temp.iteritems():
+			if k not in remove:
+				temp_out[counter] = v
+				counter += 1
+		return temp_out
+
+				
+	def _sweep(self):
+		# find all  non clustered hits
+		self.out = { }
+		self.noise = []
+		temp = { }
+		miset = set()
+		indexset = set()
+		for mi in self.ggdatami: # check meta info
+			miset.add(self.ggdatami.index(mi)) # all hit indices
+			for k,cl in self.cls.iteritems():
+				clsmi = [trh.meta_info for trh in cl]
+				if mi in clsmi:
+					indexset.add(self.ggdatami.index(mi))
+		noiseidx = miset.difference(indexset) # hits not in a cluster
+		
+		swept = []
+		for k,cl in self.cls.iteritems():
+			side = cl[0].meta_info[3] # same for all cluster members
+			clsmi = [trh.meta_info[4:] for trh in cl] # row, col
+			kdt = KDTree(clsmi)
+			indexlist = list(indexset)
+			for idx in noiseidx:
+				nmeta =  self.ggdatami[idx]
+				if side == nmeta[3]: # only for same side noise
+					pairs = kdt.query_ball_point(nmeta[4:],1.5)
+					if len(pairs)>0: # found a nearest neighbour
+						swept.append(idx) # to remove from noise
+						cl.append(self.ggdata[idx]) # sweep up
+		for k,cl in self.cls.iteritems():
+			temp[k] = cl # output with refreshed cls
+		for idx in noiseidx:
+			if idx not in swept:
+				self.noise.append(self.ggdata[idx])
+		self.out = self._remove_duplicate_clusters(temp)
+
