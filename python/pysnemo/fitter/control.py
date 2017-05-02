@@ -26,23 +26,28 @@ This module provides pipeline services for performing
 track fitting.
 """
 
-__all__ = ['MigradFittingService', 'MS_FittingService2D', 'MS_FittingService3D',
-           'Chi2FilterService', 'FitExtrapolatorService']
+__all__ = ['FittingService', 'MigradFittingService', 'MS_FittingService2D', 'MS_FittingService3D']
 
 from ROOT import TGraph2DErrors
 import logging
 import pysnemo.fitter.pyroot3dfitterV2 as pfit
 import pysnemo.fitter.mslinearfitter as msfit
 import pysnemo.fitter.ms3dlinefitter as ms3d
-from pysnemo.io.edm import FitResults
+from pysnemo.io.edm import FitResults, ClusterPaths
 import numpy as np
 
-class MigradFittingService(object):
+
+
+class FittingService(object):
     """
     Fitting Service object - fit track candidates
-    Input: must find list of ClusterPaths objects
+    Attempt several different fit models in decreasing degree of difficulty:
+    From helix to broken line to simple line. Results if present are handed back
+
+    Input: must find list of ClusterPaths objects or a dictionary from 
+           direct processing of the path finding module.
     
-    Output: ROOT fitter object
+    Output: Tuple of lists of FitResults objects (see EDM)
 
     """
     def __init__(self, inboxkey, outboxkey, Bfield = 25.0):
@@ -68,16 +73,21 @@ class MigradFittingService(object):
 
     def __call__(self, event):
         """
-        process the data from event, which must be a dictionary 
-        of track candidate points with errors.
-        Output: in key outbox key a dictionary is added to event
-                containing keys of candidate numbers (int) and 
-                a list of root virtual fitter result objects.
+        process the data from event, which must find a list of ClusterPaths 
+        objects.
+        Output: Tuple of lists of FitResults objects
         """
         # Get input data according to keystring
         if (self.inkey is not None):
             if (event.hasKey(self.inkey)):
                 data = event.getKeyValue(self.inkey)
+                if isinstance(data,list): # list of clusterpath objects from reading file
+                    cand = self.process(data)
+                elif isinstance(data,dict): # direct tracker output
+                    clpdata = self.transfer(data)
+                    cand = self.process(clpdata)
+                else:
+                    print 'Error in pipeline: unknown input type ',type(data)
             else:
                 print 'Error in pipeline: key %s not in event'%self.inkey
                 return None
@@ -88,7 +98,6 @@ class MigradFittingService(object):
         
         # number crunshing get candidates as 
         # numbered (key) list of ...
-        cand = self.process(data)
 
         # Then set the outboxkey
         event.setKeyValue(self.outkey, cand)
@@ -98,11 +107,119 @@ class MigradFittingService(object):
 
 
 
+    def transfer(self, datain):
+        clpdata = []
+        for k,val in datain.iteritems():
+            clp = ClusterPaths(k)
+            for pid, entry in val.iteritems():
+                clp.add_path(pid,entry)
+            clpdata.append(clp)
+        return clpdata
+
+
+
+    def process(self, data):
+        '''
+        Use the separate fitting services stand-alone, separately from
+        event processing.
+        '''
+        migradhelix = MigradFittingService("in","out",self.bfield) # inbox and outbox keys 
+        migradline = MigradFittingService("in","out",0.0)
+        brline = MS_FittingService3D("in2","out2") # are irrelevant for internal use like here
+
+        # Helix first
+        helixfits = migradhelix.process(data)
+
+        # Broken lines next
+        blfits = brline.process(data)
+
+        # Line next
+        linefits = migradline.process(data)      
+
+        return (helixfits, blfits, linefits)
+
+
+
+class MigradFittingService(object):
+    """
+    Fitting Service object - fit track candidates
+    Input: must find list of ClusterPaths objects
+    
+    Output: List of FitResults objects
+
+    """
+    def __init__(self, inboxkey, outboxkey, Bfield = 25.0):
+        """
+        Initialise a Fitting Service with the parameters given
+        inboxkey  : the key to a list of ClusterPaths objects
+        outboxkey : output key in the event dictionary
+
+        """
+        self.logger = logging.getLogger('eventloop.FittingService')
+        self.inkey = inboxkey
+        self.outkey = outboxkey
+        self.bfield = Bfield
+        # write logging info
+        self.logger.info('Input key: %s',self.inkey)
+        self.logger.info('Output key: %s',self.outkey)
+
+        
+    def __repr__(self):
+        s = 'Migrad Fitting Service'
+        return s
+
+
+    def __call__(self, event):
+        """
+        process the data from event, which must be a list of 
+        ClusterPath objects.
+        Output: List of FitResults objects
+        """
+        # Get input data according to keystring
+        if (self.inkey is not None):
+            if (event.hasKey(self.inkey)):
+                data = event.getKeyValue(self.inkey)
+                if isinstance(data,list): # list of clusterpath objects from reading file
+                    cand = self.process(data)
+                elif isinstance(data,dict): # direct tracker output
+                    clpdata = self.transfer(data)
+                    cand = self.process(clpdata)
+                else:
+                    print 'Error in pipeline: unknown input type ',type(data)
+            else:
+                print 'Error in pipeline: key %s not in event'%self.inkey
+                return None
+        else:
+            print 'Error in pipeline: key is None'
+            return None
+
+        
+        # number crunshing get candidates as 
+        # numbered (key) list of ...
+
+        # Then set the outboxkey
+        event.setKeyValue(self.outkey, cand)
+
+        # Finally, return the event object
+        return event
+
+
+
+    def transfer(self, datain):
+        clpdata = []
+        for k,val in datain.iteritems():
+            clp = ClusterPaths(k)
+            for pid, entry in val.iteritems():
+                clp.add_path(pid,entry)
+            clpdata.append(clp)
+        return clpdata
+
+
+
     def process(self, data):
         candidates = []
         for cpaths in data:
             fr = FitResults(cpaths.id)
-#            results = {}
             for pnumber, path in cpaths.paths.iteritems():
                 hits = []
                 errors = []
@@ -116,32 +233,27 @@ class MigradFittingService(object):
                 hist.SetName("data")
             
                 for i,(point,err) in enumerate(zip(hits,errors)):
-                    hist.SetPoint(i,point[0],point[1],point[2])
-                    hist.SetPointError(i,err[0],err[1],err[2])
-                
-                    # and fit as line with output for line extrapolator
+                    hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
+                    hist.SetPointError(i,err[0]*1.0e-3,err[1]*1.0e-3,err[2]*1.0e-3)
+                    
+                # and fit as line with output for line extrapolator
                 if (len(hits)>0):
-#                    results[pnumber] = []
-                    lf = pfit.linefitter(hist)
-                    lfitter = lf.lfitter
-                    if (lfitter): # line fit, store a tuple
-#                        print lf 
-                        fr.add_fitter(pnumber,(lf.linepar,lf.fit_errors,lf.chi2,[],[]))
-#                        results[pnumber].append((lf.linepar,lf.fit_errors,lf.chi2,[],[]))
-                    else:
-                        print "Failed MIGRAD line fit"
-                    if self.bfield > 0.0: # want a decent bfield for this, units ??Tesla??
+                    if self.bfield <= 0.0: # no bfield, line fit
+                        lf = pfit.linefitter(hist)
+                        lfitter = lf.lfitter
+                        if (lfitter): # line fit, store a tuple
+                            fr.add_fitter(pnumber,(lf.linepar,lf.fit_errors,lf.chi2,[],[]))
+                        else:
+                            print "Failed MIGRAD line fit"
+                    elif self.bfield > 0.0: # want a decent bfield for this, units ??Tesla??
                         hf = pfit.helixfitter(hist,self.bfield)
                         fitresult = hf.helix_result
                         if (fitresult is not None): # store HelixFit object
-#                            print fitresult
                             fr.add_fitter(pnumber,fitresult) # added HelixFit
-#                            results[pnumber].append(fitresult) 
                         else:
                             print "Failed MIGRAD helix fit"
                 hist.Clear()
             candidates.append(fr)
-#            candidates[cpaths.id] = results
         return candidates
 
 
@@ -151,8 +263,7 @@ class MS_FittingService2D(object):
     Fitting Service object - fit track candidates
     Input: must find dictionary of track candidates
     
-    Output: dictionary - keys of candidate numbers (int) and 
-            a tuple of a best fit list, error list and chisq.
+    Output: List of FitResults objects
 
     """
     def __init__(self, inboxkey, outboxkey):
@@ -180,9 +291,7 @@ class MS_FittingService2D(object):
         """
         process the data from event, which must be a dictionary 
         of track candidate points with errors.
-        Output: in key outbox key a dictionary is added to event
-                containing keys of candidate numbers (int) and 
-                a tuple of a best fit list, error list and chisq.
+        Output: List of FitResults objects
         """
         # Get input data according to keystring
         if (self.inkey is not None):
@@ -208,9 +317,10 @@ class MS_FittingService2D(object):
 
 
     def process(self, data):
-        cluster = {}
+        candidates = []
         for cpaths in data:
-            results = {}
+            fr = FitResults(cpaths.id)
+            # results = {}
             for l, path in cpaths.paths.iteritems():
                 hits = path
 
@@ -222,8 +332,9 @@ class MS_FittingService2D(object):
                 #print 'Beta Errors list: ',beta_errors
                 if chi>=0: # valid fit
                     bins, angles = msfit.kink_finder(beta_angles, beta_errors)
-                    results[l] = []
-                    results[l].append((bestfit,error,chi,bins,angles))
+                    # results[l] = []
+                    fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                    # results[l].append((bestfit,error,chi,bins,angles))
                     if len(bins)>0: # split at kinks
                         # now split the data and fit only innermost and 
                         # outermost segment in order to extrapolate better to 
@@ -248,17 +359,21 @@ class MS_FittingService2D(object):
                         ic1, sl1 = self.start_values(hits1)
                         #print 'Left part: Start values: ic=%f, sl=%f'%(ic1,sl1)
                         bestfit, error, chi = msfit.segment_fit(hits1,ic1,sl1)
-                        results[l].append((bestfit,error,chi,bins,angles))
+                        fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                        # results[l].append((bestfit,error,chi,bins,angles))
 
                         ic2, sl2 = self.start_values(hits2)
                         #print 'Right part: Start values: ic=%f, sl=%f'%(ic2,sl2)
                         bestfit, error, chi = msfit.segment_fit(hits2,ic2,sl2)
-                        results[l].append((bestfit,error,chi,bins,angles))
+                        fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                        # results[l].append((bestfit,error,chi,bins,angles))
                         
                 else: # initial fit failed
-                    results[l] = [(bestfit,error,chi,[],[])]
-            cluster[cpaths.id] = results
-        return cluster
+                    fr.add_fitter(l, (bestfit,error,chi,[],[]))
+                    # results[l] = [(bestfit,error,chi,[],[])]
+            candidates.append(fr)
+            # cluster[cpaths.id] = results
+        return candidates
 
 
     def start_values(self,hits):
@@ -281,8 +396,7 @@ class MS_FittingService3D(object):
     Fitting Service object - fit track candidates
     Input: must find dictionary of track candidates
     
-    Output: dictionary - keys of candidate numbers (int) and 
-            a tuple of a best fit list, error list and chisq.
+    Output: List of FitResults objects
 
     """
     def __init__(self, inboxkey, outboxkey):
@@ -310,9 +424,7 @@ class MS_FittingService3D(object):
         """
         process the data from event, which must be a dictionary 
         of track candidate points with errors.
-        Output: in key outbox key a dictionary is added to event
-                containing keys of candidate numbers (int) and 
-                a tuple of a best fit list, error list and chisq.
+        Output: List of FitResults objects
         """
         # Get input data according to keystring
         if (self.inkey is not None):
@@ -338,9 +450,10 @@ class MS_FittingService3D(object):
 
 
     def process(self, data):
-        cluster = {}
+        candidates = []
         for cpaths in data:
-            results = {}
+            fr = FitResults(cpaths.id)
+            # results = {}
             for l, path in cpaths.paths.iteritems():
                 hits = path
 
@@ -357,8 +470,9 @@ class MS_FittingService3D(object):
                 if chi>=0: # valid fit
                     bins, angles = ms3d.kink_finder(beta_angles, beta_errors)
                     #print 'KinkFinder result: ',bins,angles
-                    results[l] = []
-                    results[l].append((bestfit,error,chi,bins,angles))
+                    # results[l] = []
+                    fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                    # results[l].append((bestfit,error,chi,bins,angles))
                     if len(bins)>0: # split at kinks
                         # now split the data and fit only innermost and 
                         # outermost segment in order to extrapolate better to 
@@ -372,8 +486,10 @@ class MS_FittingService3D(object):
                             hits1 = hits[:bin1+4] # have at least 5 points
                             #print 'short data1: ',hits1
                             b1, e1, c1, b2, e2, c2 = self.short_fit(hits1)
-                            results[l].append((b1,e1,c1,bins,angles))
-                            results[l].append((b2,e2,c2,bins,angles))
+                            fr.add_fitter(l, (b1,e1,c1,bins,angles))
+                            fr.add_fitter(l, (b2,e2,c2,bins,angles))
+                            # results[l].append((b1,e1,c1,bins,angles))
+                            # results[l].append((b2,e2,c2,bins,angles))
                         else:
                             hits1 = hits[:bin1]
                             #print 'Hits to left: ',hits1
@@ -383,14 +499,17 @@ class MS_FittingService3D(object):
                             #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
                             stvals = [icxy,slxy,icxz,slxz]
                             bestfit, error, chi, d1,d2 = ms3d.fitter(hits1,stvals)
-                            results[l].append((bestfit,error,chi,bins,angles))
+                            fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                            # results[l].append((bestfit,error,chi,bins,angles))
 
                         if bin2>len(hits)-6:
                             hits2 = hits[bin2-5:] # have at least 5 points
                             #print 'short data2: ',hits2
                             b1, e1, c1, b2, e2, c2 = self.short_fit(hits2)
-                            results[l].append((b1,e1,c1,bins,angles))
-                            results[l].append((b2,e2,c2,bins,angles))
+                            fr.add_fitter(l, (b1,e1,c1,bins,angles))
+                            fr.add_fitter(l, (b2,e2,c2,bins,angles))
+                            # results[l].append((b1,e1,c1,bins,angles))
+                            # results[l].append((b2,e2,c2,bins,angles))
                         else:
                             hits2 = hits[bin2:]
                             #print 'Hits to right: ',hits2
@@ -400,12 +519,15 @@ class MS_FittingService3D(object):
                             #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
                             stvals = [icxy,slxy,icxz,slxz]
                             bestfit, error, chi, d1,d2 = ms3d.fitter(hits2,stvals)
-                            results[l].append((bestfit,error,chi,bins,angles))
+                            fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                            # results[l].append((bestfit,error,chi,bins,angles))
 
                 else: # initial fit failed
-                    results[l] = [(bestfit,error,chi,[],[])]
-            cluster[cpaths.id] = results
-        return cluster
+                    fr.add_fitter(l, (bestfit,error,chi,[],[]))
+                    # results[l] = [(bestfit,error,chi,[],[])]
+            candidates.append(fr)
+            # cluster[cpaths.id] = fr
+        return candidates
 
 
     def start_values(self,hits,which):

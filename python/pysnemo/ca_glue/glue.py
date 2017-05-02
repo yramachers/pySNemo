@@ -69,10 +69,10 @@ class MergeXY(object):
 				s2 = set(metacl[ks[j]])
 				sd1 = s1.difference(s2)
 				sd2 = s2.difference(s1)
-				if len(sd1)<2: # diff of 1 wire max
+				if len(sd1)<1: # no diff
 					# s1 is a sub-set
 					remove.append(ks[i]) # [0]=key
-				elif len(sd2)<2: # diff of 1 wire max
+				elif len(sd2)<1: # no diff
 					# s2 is a sub-set
 					remove.append(ks[j]) # [0]=key
 		#print 'remove has: ',remove
@@ -104,7 +104,7 @@ class MergeXY(object):
 	def _merge(self):
 		temp = {}
 		klist = []
-		#print 'clusters in x: ',len(self.clsx)
+		#print 'MergeXY: clusters in x: ',len(self.clsx)
 		#print 'clusters in y: ',len(self.clsy)
 		klist = self._maxkeys(self.clsx,klist)
 		#print 'clusters in x max keylist: ',klist

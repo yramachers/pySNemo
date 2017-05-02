@@ -1,0 +1,6 @@
+From ROOT prompt with ACLiC
+
+root [0] .L fit3dVers2.cxx+
+Info in <TUnixSystem::ACLiC>: creating shared library /home/epp/phsdaq/Code/pySNemo/python/pysnemo/fitter/./fit3dVers2_cxx.so
+
+setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/warwick/epp/2015.1/Cellar/root6/6.08.02/lib/root

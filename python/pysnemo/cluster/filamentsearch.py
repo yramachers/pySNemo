@@ -138,7 +138,7 @@ class FilamentCluster(object):
             the missing pixels afterwards where suitable.
             '''
             broken = False
-            print 'Complex split, trying filament search.'
+            #print 'Complex split, trying filament search.'
 
             # every node is a pixel in the image
             graph = gg2i.image_to_graph(data)
@@ -150,9 +150,9 @@ class FilamentCluster(object):
                     deg = graph.degree(nd)
                     if deg >= maxdegree:
                         maxdegree = deg
-                print 'maximum degree found: %d'%maxdegree
+                #print 'maximum degree found: %d'%maxdegree
                 if maxdegree < 5: # filaments too thin to find meaningful splitpoints
-                    print 'Filaments too thin, trying image segmentation.'
+                    #print 'Filaments too thin, trying image segmentation.'
                     iseg = ImageSegmentation(data, side) # try alternativ with one-side data set
                     iseg.run()
                     cl = iseg.getClusters()
@@ -174,13 +174,13 @@ class FilamentCluster(object):
                 imagelabels, nlabels = label(im,anyslope)
                 if nlabels > 1:
                     cls = self._cluster(imagelabels, nlabels, side)
-                    print 'n labels found: ',nlabels
+                    #print 'n labels found: ',nlabels
                     broken = True
             # now put the undecided pixels back into the clusters
             cl = self._restore_pixels(pixelstore, cls)
 
         elif split==1:
-            print 'Simple split, trying image segmentation.'
+            #print 'Simple split, trying image segmentation.'
             iseg = ImageSegmentation(data, side) # try with one-side data set
             iseg.run()
             cl = iseg.getClusters()
@@ -195,7 +195,7 @@ class FilamentCluster(object):
                 mi = (side, r, c) # left tracker
                 hitinfo.append(mi)
             cl[1] = hitinfo # hitinfo structure for hit identification later
-            print 'Filament: single cluster[1] has',hitinfo
+            #print 'Filament: single cluster[1] has',hitinfo
         return cl
 
 
@@ -267,7 +267,7 @@ class FilamentCluster(object):
                             hit = (side, nd[0], nd[1])
                             if not (hit in v):
                                 v.append(hit) # insert node as hitinfo
-                                print 're-inserted info: (%d, %d, %d) in cluster %d'%(side, nd[0], nd[1], k)
+                                #print 're-inserted info: (%d, %d, %d) in cluster %d'%(side, nd[0], nd[1], k)
         return cls
 
 
@@ -449,7 +449,7 @@ class ImageSegmentation(object):
                 mi = (side, r, c) # left tracker
                 hitinfo.append(mi)
             cl[1] = hitinfo # hitinfo structure for hit identification later
-            print 'ImSeg: single cluster[1] has',hitinfo
+            #print 'ImSeg: single cluster[1] has',hitinfo
         return cl
 
 

@@ -34,7 +34,7 @@ from pysnemo.cellular_automaton.clustering import Scaling, Unclustering
 from pysnemo.cellular_automaton.ca import CellularAutomaton3D
 from pysnemo.cellular_automaton.point import Hit, Cluster
 from pysnemo.utility.unique import unique_hit_assignment
-from pysnemo.io.edm import tracker_hit
+from pysnemo.io.edm import tracker_hit, gcylinder
 from numpy import asarray, delete, append
 from math import sqrt
 import logging
@@ -243,7 +243,16 @@ class CAService(object):
         """
         cluster = Cluster()
         for hit in hits:
-            if isinstance(hit,tracker_hit):
+            if isinstance(hit,gcylinder):
+                if self.flatbool:
+                    wireset = (hit.xwire,hit.ywire,0.0,hit.radius)
+                else:
+                    wireset = (hit.xwire,hit.ywire,hit.zwire,hit.radius)
+                err = [hit.dr,hit.dz]
+                h = Hit(wireset[:3], wireset[3], err)
+                h.setMeta_data(hit.meta_info) # gcylinder meta data
+                cluster.addPoint(h)
+            elif isinstance(hit,tracker_hit):
                 if self.flatbool:
                     wireset = (hit.x,hit.y,0.0,hit.r)
                 else:
@@ -253,7 +262,7 @@ class CAService(object):
                 h.setMeta_data(hit.meta_info) # tracker_hit meta data
                 cluster.addPoint(h)
             else:
-                print 'data type not recognized, not a tracker_hit'
+                print 'data type not recognized, neither gcylinder nor tracker_hit'
                 return []
         return cluster.getPoints()
 
