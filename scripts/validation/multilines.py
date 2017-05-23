@@ -173,14 +173,30 @@ class track_generator(object):
         return self.single_line_manual(sl, intercept)
 
 
+    def single_line_manual_atplane(self, slope, interceptx, intercepty):
+        # no container needed
+        vec = euclid.Vector3(1.0, slope,0.0)
+        pos = euclid.Point3(interceptx, intercepty, 0.0) # fix at icx, iy point
+        return euclid.Line3(pos,vec)
+
+
+    def single_line_random_atplane(self, interceptx, intercepty):
+        # no container needed
+        angle = random.uniform(-pi*0.5+0.17, pi*0.5-0.17) # taking vertical out
+        sl = tan(angle)
+        return self.single_line_manual_atplane(sl, interceptx, intercepty)
+
+
     def double_manual_atvertex(self, sl1, sl2, intercept = 0.0):
         self.lines = [] # clear
+        # v-shape double line from vertex
         self.lines.append(self.single_line_manual(sl1, intercept))
         self.lines.append(self.single_line_manual(sl2, intercept))
         
 
     def double_random_atvertex(self, intercept = 0.0):
         self.lines = [] # clear
+        # v-shape double line from vertex
         self.lines.append(self.single_line_random_slope(intercept))
         self.lines.append(self.single_line_random_slope(intercept))
         
@@ -207,16 +223,19 @@ class helix_generator(object):
         self.helices = [] # helix container
 
 
-    def single_random_momentum(self, intercept = 0.0):
+    def single_random_momentum(self, intercept = 0.0, side=0):
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
 
-        py = random.uniform(-0.1,0.1) # random momenta x, y 
-        px = random.uniform(0.3,1.4)
+        px = random.uniform(0.3,1.4) # random momentum x, right
+        py = random.uniform(-0.1,0.1) # random momentum y 
         pz = 0.0 # try only 2D on wire distance
+
+        if side==1: # right tracker
+            charge = -1.0 # unit [e]
+        else:
+            charge = 1.0 # unit [e]
+
         momentum = (px,py,pz) # unit [MeV/c]
-
-        charge = 1.0 # unit [e]
-
         bfield = 2.5e-3 # 25 Gauss
 
         return HX.helix(pos,momentum,charge,bfield)

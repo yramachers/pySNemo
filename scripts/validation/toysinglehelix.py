@@ -15,6 +15,7 @@ root.gROOT.ProcessLine(
    vector<double>* pointz;\
    vector<double>* breakpointx;\
    vector<double>* breakpointy;\
+   vector<double>* bpangle;\
    vector<double>* radius;\
    vector<double>* wirex;\
    vector<double>* wirey;\
@@ -90,6 +91,7 @@ dataStruct.pointy = root.std.vector('double')()
 dataStruct.pointz = root.std.vector('double')()
 dataStruct.bpointx = root.std.vector('double')()
 dataStruct.bpointy = root.std.vector('double')()
+dataStruct.bangle = root.std.vector('double')()
 dataStruct.radius = root.std.vector('double')()
 dataStruct.wirex = root.std.vector('double')()
 dataStruct.wirey = root.std.vector('double')()
@@ -108,6 +110,7 @@ tree.Branch('pointy', dataStruct.pointy)
 tree.Branch('pointz', dataStruct.pointz)
 tree.Branch('breakpointx', dataStruct.bpointx)
 tree.Branch('breakpointy', dataStruct.bpointy)
+tree.Branch('bpangle', dataStruct.bangle)
 tree.Branch('radius', dataStruct.radius)
 tree.Branch('wirex',  dataStruct.wirex)
 tree.Branch('wirey',  dataStruct.wirey)
@@ -123,9 +126,10 @@ tgen = ML.helix_generator() # only 2D helices!
 yinterc = 0.0
 
 for i in range(Nsims):
-    struc = tgen.single_random_momentum(yinterc) # x=0 fixed for this generator
+    lrtracker = random.randint(0,1) # pick a side randomly
+    #lrtracker = 1 # all on the right tracker half
+    struc = tgen.single_random_momentum(yinterc,lrtracker) # x=0 fixed for this generator
 
-    lrtracker = random.randint(0,1)
     cells, radii = wgr.hits(struc, lrtracker) # left/right tracker half
     info = wgr.wireinfo
 
@@ -140,6 +144,7 @@ for i in range(Nsims):
     dataStruct.pointz.clear()
     dataStruct.bpointx.clear()
     dataStruct.bpointy.clear()
+    dataStruct.bangle.clear()
     dataStruct.radius.clear()
     dataStruct.wirex.clear()
     dataStruct.wirey.clear()

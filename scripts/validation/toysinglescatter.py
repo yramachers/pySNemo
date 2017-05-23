@@ -15,6 +15,7 @@ root.gROOT.ProcessLine(
    vector<double>* pointz;\
    vector<double>* breakpointx;\
    vector<double>* breakpointy;\
+   vector<double>* bpangle;\
    vector<double>* radius;\
    vector<double>* wirex;\
    vector<double>* wirey;\
@@ -76,6 +77,7 @@ dataStruct.pointy = root.std.vector('double')()
 dataStruct.pointz = root.std.vector('double')()
 dataStruct.bpointx = root.std.vector('double')()
 dataStruct.bpointy = root.std.vector('double')()
+dataStruct.bangle = root.std.vector('double')()
 dataStruct.radius = root.std.vector('double')()
 dataStruct.wirex = root.std.vector('double')()
 dataStruct.wirey = root.std.vector('double')()
@@ -94,6 +96,7 @@ tree.Branch('pointy', dataStruct.pointy)
 tree.Branch('pointz', dataStruct.pointz)
 tree.Branch('breakpointx', dataStruct.bpointx)
 tree.Branch('breakpointy', dataStruct.bpointy)
+tree.Branch('bpangle', dataStruct.bangle)
 tree.Branch('radius', dataStruct.radius)
 tree.Branch('wirex',  dataStruct.wirex)
 tree.Branch('wirey',  dataStruct.wirey)
@@ -111,6 +114,7 @@ for nsims in range(Nsims):
     cluster = { }
     lines = []
     bpoints = []
+    bangles = []
     blayer = []
     scatter_angle = 3.0 # multiple scattering angle width [degrees]
     lrtracker = random.randint(0,1) # random left or right tracker side
@@ -140,6 +144,7 @@ for nsims in range(Nsims):
         cluster[1] = (c, r, i)
     
         scat_angle = random.gauss(0.0,scatter_angle*math.pi/180.0) # random scattering angle
+        bangles.append(scat_angle)
 
         # next line continuing from breakpoint
         angle += scat_angle # altering original slope angle with new angle
@@ -167,6 +172,7 @@ for nsims in range(Nsims):
             dataStruct.pointz.clear()
             dataStruct.bpointx.clear()
             dataStruct.bpointy.clear()
+            dataStruct.bangle.clear()
             dataStruct.radius.clear()
             dataStruct.wirex.clear()
             dataStruct.wirey.clear()
@@ -185,9 +191,10 @@ for nsims in range(Nsims):
                 dataStruct.pointy.push_back(entry.p.y)
                 dataStruct.pointz.push_back(entry.p.z)
 
-            for bp, bl in zip(bpoints, blayer):
+            for bp, bang, bl in zip(bpoints, bangles, blayer):
                 dataStruct.bpointx.push_back(bp[0])
                 dataStruct.bpointy.push_back(bp[1])
+                dataStruct.bangle.push_back(bang)
                 dataStruct.breaklayer.push_back(bl)
 
 
