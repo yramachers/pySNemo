@@ -30,6 +30,7 @@ ROOT.gROOT.ProcessLine(
    vector<double>* pointz;\
    vector<double>* breakpointx;\
    vector<double>* breakpointy;\
+   vector<double>* bpangle;\
    vector<double>* radius;\
    vector<double>* wirex;\
    vector<double>* wirey;\

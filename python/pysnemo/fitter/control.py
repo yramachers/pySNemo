@@ -224,34 +224,63 @@ class MigradFittingService(object):
                 hits = []
                 errors = []
                 for p in path:
-                    h = tuple(p[:3]) #(x,y,z) split path tuples
+                    h = tuple(p[:3]) # (x,y,z) split path tuples
                     err = tuple(p[3:6]) # (ex,ey,ez) split path tuples
                     hits.append(h)
                     errors.append(err)
                 # Now construct the data object for fitting
                 hist = TGraph2DErrors(len(path))
                 hist.SetName("data")
-            
-                for i,(point,err) in enumerate(zip(hits,errors)):
-                    hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
-                    hist.SetPointError(i,err[0]*1.0e-3,err[1]*1.0e-3,err[2]*1.0e-3)
-                    
+                # print 'path number %d'%pnumber
                 # and fit as line with output for line extrapolator
                 if (len(hits)>0):
                     if self.bfield <= 0.0: # no bfield, line fit
+                        for i,(point,err) in enumerate(zip(hits,errors)): 
+                            hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
+                            hist.SetPointError(i,err[0]*1.0e-3,err[1]*1.0e-3,err[2]*1.0e-3)
+                            # print 'data in: ',point
                         lf = pfit.linefitter(hist)
                         lfitter = lf.lfitter
                         if (lfitter): # line fit, store a tuple
                             fr.add_fitter(pnumber,(lf.linepar,lf.fit_errors,lf.chi2,[],[]))
                         else:
                             print "Failed MIGRAD line fit"
-                    elif self.bfield > 0.0: # want a decent bfield for this, units ??Tesla??
-                        hf = pfit.helixfitter(hist,self.bfield)
-                        fitresult = hf.helix_result
+                    elif self.bfield > 0.0: # want a decent bfield for this, units Tesla
+                        for i,(point,err) in enumerate(zip(hits,errors)):  # more generous errors for stiff helices
+                            hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
+                            hist.SetPointError(i, 3*err[0]*1.0e-3, 3*err[1]*1.0e-3, 3*err[2]*1.0e-3)
+                        fitresult = None
+                        step = 0.1
+                        counter = 0
+                        while fitresult is None and counter < 20:
+                            startvalue = -1.04 + counter * step
+                            hf = pfit.helixfitter(hist,self.bfield, startvalue) # with inverse radius start value
+                            fitresult = hf.helix_result # sensitive to inverse radius start value!
+                            counter += 1
+                            if fitresult is not None and abs(fitresult.par[3]) > 3.0: # failed fit convergence
+                                fitresult = None
                         if (fitresult is not None): # store HelixFit object
                             fr.add_fitter(pnumber,fitresult) # added HelixFit
+                            print 'Found with start value %f'%startvalue
+#                            print fitresult
                         else:
-                            print "Failed MIGRAD helix fit"
+                            hist.Clear() # even more generous errors
+                            for i,(point,err) in enumerate(zip(hits,errors)):  # more generous 10% error for stiff helices
+                                hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
+                                hist.SetPointError(i, 0.1*point[0]*1.0e-3, 0.1*point[1]*1.0e-3, 3*err[2]*1.0e-3)
+                            counter = 0
+                            while fitresult is None and counter < 20:
+                                startvalue = -1.06 + counter * step
+                                hf = pfit.helixfitter(hist,self.bfield, startvalue) # with inverse radius start value
+                                fitresult = hf.helix_result # sensitive to inverse radius start value!
+                                counter += 1
+                                if fitresult is not None and abs(fitresult.par[3]) > 3.0: # failed fit convergence
+                                    fitresult = None
+                            if (fitresult is not None): # store HelixFit object
+                                fr.add_fitter(pnumber,fitresult) # added HelixFit
+                                print 'Found 2nd time with start value %f'%startvalue
+                            else:
+                                print "Failed MIGRAD helix fit"
                 hist.Clear()
             candidates.append(fr)
         return candidates

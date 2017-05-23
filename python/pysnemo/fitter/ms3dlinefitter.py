@@ -213,7 +213,7 @@ def fitter(data,par):
     min.SetVariable(1,"slope xy",variable[1], step[1])
     min.SetVariable(2,"intercept xz",variable[2], step[2])
     min.SetVariable(3,"slope xz",variable[3], step[3])
-    if min.Minimize():
+    if min.Minimize() and len(data) > lstsq.NDim():
         # get some results from minimizer
         best = array('f',[0]) # pyroot pointer helper
         best = min.X()
@@ -251,10 +251,10 @@ def kink_finder(betaangles, berrors):
         hist.SetBinError(i+1,sqrt(err))
     sp = ROOT.TSpectrum()
     npeaks = sp.Search(hist,1,"goff",0.9) # 90% threshold for second peak
-    print "found npeaks = ",npeaks
+    #print "found npeaks = ",npeaks
     if npeaks==0: # try one more
         npeaks = sp.Search(hist,2.0,"goff",0.9) # 90% threshold for second peak
-        print "2nd attempt npeaks = ",npeaks
+        #print "2nd attempt npeaks = ",npeaks
     bins = []
     angles = []
     if npeaks>0:
@@ -262,8 +262,8 @@ def kink_finder(betaangles, berrors):
         peakpos = sp.GetPositionX()
         for i in range(npeaks):
             bin = hist.FindBin(peakpos[i])
-            print 'peak at bin: ',bin
-            print 'and angle: ',hist.GetBinContent(bin)
+            #print 'peak at bin: ',bin
+            #print 'and angle: ',hist.GetBinContent(bin)
             bins.append(bin)
             angles.append(hist.GetBinContent(bin))
     return bins, angles

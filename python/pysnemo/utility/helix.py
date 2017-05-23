@@ -1,5 +1,5 @@
 import ROOT as root
-from math import sqrt, sin, cos, atan, atan2, pi, isnan
+from math import sqrt, sin, cos, atan2, pi, isnan
 class helix(object):
     '''
     Helix object, from
@@ -227,19 +227,30 @@ class Par5Helix(object):
         z0 = par[2]
         omega = par[3]
         tanlambda = par[4]
+        self.par = par # for printing
 
         if omega==0:
             print "No curvature omega, no helix"
-            return 0
+            return None
 
         charge = omega/abs(omega)
         radius = 1.0 / abs(omega)
-        phi0 = atan(-xatpca/yatpca)
+        #print 'Par5: radius=',radius
+        phi0 = atan2(-xatpca,yatpca)
+        #print 'a Par5: phi0=',phi0
+        if abs(phi0) > pi/2.0:
+            phi0 += pi
         ref_point = (xatpca,yatpca,z0)
         pxy = unit_constant * Bfield * radius
+        #print 'Par5: pxy=',pxy
         momentum = (pxy*cos(phi0),pxy*sin(phi0),tanlambda*pxy)
-        
+        self.mom = momentum # for printing
         self.helix = helix(ref_point,momentum,charge,Bfield)
+
+    def __str__(self):
+        s = "Par5 helix with parameters: (%f,%f,%f,%f,%f)\n" % self.par
+        s += "giving momentum: (%f,%f,%f)\n" % self.mom
+        return s
 
     def PointOnHelix(self, t=1.0):
         return self.helix.PointOnHelix(t)
@@ -290,6 +301,8 @@ class HelixFit(object):
         if valid:
             self.hel = Par5Helix(self.par,self.bf) # helix from best fit values
             self.observables()
+            #print self.hel # par5 helix
+            #print self.hel.helix # helix after calculations
         else:
             self.hel = None
 
@@ -334,8 +347,12 @@ class HelixFit(object):
         self.fitcharge_error = self.fitcharge * abs(domega/self.par[3])
 
         dpxy = self.hel.helix.pxy * (domega/self.par[3])
-        arg = -self.par[0]/self.par[1]
-        darg = arg * sqrt((dx/self.par[0])**2.0 + (dy/self.par[1])**2.0)
+        if abs(self.par[1])>0.0:
+            arg = -self.par[0]/self.par[1]
+            darg = arg * sqrt((dx/self.par[0])**2.0 + (dy/self.par[1])**2.0)
+        else:
+            arg = 0.0
+            darg = 0.0
         df1 = -arg / (1.0+arg**2.0)**1.5
         df2 = 1.0 / (1.0+arg**2.0)**1.5
         d_px = sqrt((dpxy/self.hel.helix.pxy)**2.0 + (df1*df1 * darg*darg))

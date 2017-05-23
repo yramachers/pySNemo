@@ -1,4 +1,23 @@
 from pysnemo.utility import euclid
+class line(object):
+    """
+    simple line object holding slope and intercept
+    """
+    def __init__(self,slope=1.0,icept=0.0):
+        self.slope = slope
+        self.intercept = icept
+        v2 = euclid.Vector2(1.0,self.slope)
+        p1 = euclid.Point2(0.0,self.intercept)
+        self.l = euclid.Line2(p1,v2)
+
+    def __str__(self):
+        return "line with slope=%f, intercept=%f" % (self.slope,self.intercept)
+
+    def get_euclid_line(self):
+        return self.l
+
+
+
 class ClusterPaths(object):
     '''
     Hold cluster and associated paths: 
@@ -96,6 +115,70 @@ class Particle(object):
         self.angles = angles
 
 
+class gcylinder(object):
+    """
+    The Geiger cylinder only contains data originating from measurements. That 
+    data needs to be handed over when constructing the cylinder.
+      xwire, ywire : geiger counter wire coordinates, known precisely
+      radius       : measured radial distance of track to wire
+      dr           : radial uncertainty
+      zwire        : coordinate along the wire, measured, usually to far less 
+                     precision than radial value
+      dz           : error on z
+      r_max        : maximum cylinder radius to avoid overlap; constant
+
+    It also holds meta data as tuple of int in the container called 
+    meta_info as (Id, Side, Layer and Column)
+    """
+    def __init__(self,x=0.0,y=0.0,z=0.0,dz=1.0,r=0.0,dr=1.0):
+        self.xwire = x
+        self.ywire = y
+        self.zwire = z
+        self.dz = dz
+        self.checkRadius(r,dr)
+        
+    def __str__(self):
+        s = "Geiger Cylinder of radius = %f and height = %f\n" % (self.radius,2*self.dz)
+        s += "Uncertainty on radius dr = %f\n" % self.dr
+        s += "around wire position (%f, %f, %f)" % (self.xwire,self.ywire,self.zwire)
+        return s
+
+    def __eq__(self,other):
+        '''
+        check on equality of two cylinders, self and other, tolerance set
+        to 1 mm of the wire coordinates, assumed to be in units of cm
+        '''
+        tol = 0.1
+        if (abs(self.xwire - other.xwire) < tol):
+            if (abs(self.ywire - other.ywire) < tol):
+                if (abs(self.zwire - other.zwire) < tol):
+                    return True
+                else:
+                    return False
+            else:
+                return False
+        else:
+            return False
+
+
+    def checkRadius(self,r,dr):
+        """
+        The radius can be pointlike but has a finite error, i.e. check if 
+        its too small for its error and set it to the 
+        error boundary, i.e. avoid zero radii values.
+        """
+        if (r < dr):
+            self.radius = dr # minimal radius
+        else:
+            self.radius = r
+
+        self.dr = dr
+    
+
+    def set_info(self, ggid, id, module, side, layer, column):
+        self.meta_info = (ggid, id, module, side, layer, column) # all int type
+
+                 
 
 class tracker_hit(object):
     """
@@ -313,7 +396,7 @@ class toytruth(object):
         s += 'id = %d '%self.id
         s += 'parameter: (%f, %f, %f, %f, %f, %f)\n'%self.parstore
         for i in range(len(self.bplist)): # only if bplist not empty
-            s += 'break point x=%f, y=%f at layer %d.'%(self.bplist[i][0],self.bplist[i][1],self.bplist[i][2])
+            s += 'break point x=%f, y=%f with angle=%f at layer %d.'%(self.bplist[i][0],self.bplist[i][1],self.bplist[i][2],self.bplist[i][3])
         return s
 
     def getLine(self):

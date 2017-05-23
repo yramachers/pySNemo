@@ -538,6 +538,7 @@ class ToySimRun(object):
         self.datastruct.pointz = ROOT.std.vector('double')()
         self.datastruct.breakpointx = ROOT.std.vector('double')()
         self.datastruct.breakpointy = ROOT.std.vector('double')()
+        self.datastruct.bpangle = ROOT.std.vector('double')()
         self.datastruct.radius = ROOT.std.vector('double')()
         self.datastruct.wirex = ROOT.std.vector('double')()
         self.datastruct.wirey = ROOT.std.vector('double')()
@@ -556,6 +557,7 @@ class ToySimRun(object):
         self.tree.SetBranchAddress('pointz', ROOT.AddressOf(self.datastruct, "pointz") )
         self.tree.SetBranchAddress('breakpointx', ROOT.AddressOf(self.datastruct, "breakpointx") )
         self.tree.SetBranchAddress('breakpointy', ROOT.AddressOf(self.datastruct, "breakpointy") )
+        self.tree.SetBranchAddress('bpangle', ROOT.AddressOf(self.datastruct, "bpangle") )
         self.tree.SetBranchAddress('radius', ROOT.AddressOf(self.datastruct, "radius") )
         self.tree.SetBranchAddress('wirex', ROOT.AddressOf(self.datastruct, "wirex") )
         self.tree.SetBranchAddress('wirey', ROOT.AddressOf(self.datastruct, "wirey") )
@@ -616,8 +618,9 @@ class ToySimRun(object):
         for i in range(self.datastruct.break_layer.size()):
             bpx = self.datastruct.breakpointx[i]
             bpy = self.datastruct.breakpointy[i]
+            bpa = self.datastruct.bpangle[i]
             bpl = self.datastruct.break_layer[i]
-            bpcontainer.append((bpx,bpy,bpl))
+            bpcontainer.append((bpx,bpy,bpa,bpl))
 
         for i in range(self.datastruct.dirx.size()):
             dirx = self.datastruct.dirx[i]

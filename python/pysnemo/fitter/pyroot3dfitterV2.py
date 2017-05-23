@@ -70,14 +70,15 @@ class helixfitter(object):
     Process: Fit a helix to the data in 3D.
     Output: Access by helix_result member which is a HelixFit object.
     '''
-    def __init__(self, datagraph, bfield = 25.0):
+    def __init__(self, datagraph, bfield, inverse_rad = 0.25):
         self.helix_result = None
         self.bfield = bfield # magnetic field strength in [Gauss]
+        self.invrad = inverse_rad
         self.helix_fit(datagraph)
         
 
     def __str__(self):
-        if self.helix_result is not None:
+        if self.helix_result is None:
             return "Apply helix_fit method first: results are empty!"
         else:
             s = "Print HelixFit object in helix_result for output.\n"
@@ -87,10 +88,8 @@ class helixfitter(object):
         '''
         Fill the attributes linepar and fit_errors as results of a fit.
         '''
-        lf = root.helix_fit(data, self.bfield)
+        lf = root.helix_fit(data, self.bfield, self.invrad) # fit all parameter
         if (lf):
             test = hhelix.HelixFit(lf)
             if test.hel is not None:
                 self.helix_result = test
-        else:
-            print "Warning: Fit failed with MIGRAD"
