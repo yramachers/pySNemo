@@ -1,3 +1,4 @@
+import random
 import ROOT as root
 import multilines as ML
 
@@ -23,10 +24,11 @@ root.gROOT.ProcessLine(
    vector<int>*    break_layer;\
 };");
 
+
 Nsims = 1000 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
-file = root.TFile("/tmp/double_atvertex.tsim","recreate")
+file = root.TFile("/tmp/double_Vvertex.tsim","recreate")
 tree = root.TTree("hit_tree","Hit data")
 tree.SetDirectory(file)
 
@@ -75,15 +77,16 @@ tgen = ML.track_generator()
 for i in range(Nsims):
     tgen.double_random_atvertex() # vertex on foil at x=0,y=0
     both = tgen.getLines()
+    lrtracker = random.randint(0,1) # pick left or right
     lines = []
 
-    # enable one line on the left
-    lines.append((both[0],0))
-
-    # second line on the right
-    lines.append((both[1],1))
+    # enable both lines on the same side
+    lines.append((both[0],lrtracker))
+    lines.append((both[1],lrtracker))
 
     # all hits related truth data in cluster
+    # doubles are routinely removed in favour of
+    # the hit with smaller radius
     cluster = wgr.multi_track_hits(lines)
 
     file.cd()
