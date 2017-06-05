@@ -243,8 +243,8 @@ class MigradFittingService(object):
                         lfitter = lf.lfitter
                         if (lfitter): # line fit, store a tuple
                             fr.add_fitter(pnumber,(lf.linepar,lf.fit_errors,lf.chi2,[],[]))
-                        else:
-                            print "Failed MIGRAD line fit"
+                        #else:
+                            #print "Failed MIGRAD line fit"
                     elif self.bfield > 0.0: # want a decent bfield for this, units Tesla
                         for i,(point,err) in enumerate(zip(hits,errors)):  # more generous errors for stiff helices
                             hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
@@ -261,7 +261,7 @@ class MigradFittingService(object):
                                 fitresult = None
                         if (fitresult is not None): # store HelixFit object
                             fr.add_fitter(pnumber,fitresult) # added HelixFit
-                            print 'Found with start value %f'%startvalue
+                            #print 'Found with start value %f'%startvalue
 #                            print fitresult
                         else:
                             hist.Clear() # even more generous errors
@@ -278,9 +278,9 @@ class MigradFittingService(object):
                                     fitresult = None
                             if (fitresult is not None): # store HelixFit object
                                 fr.add_fitter(pnumber,fitresult) # added HelixFit
-                                print 'Found 2nd time with start value %f'%startvalue
-                            else:
-                                print "Failed MIGRAD helix fit"
+                                #print 'Found 2nd time with start value %f'%startvalue
+                            #else:
+                                #print "Failed MIGRAD helix fit"
                 hist.Clear()
             candidates.append(fr)
         return candidates
@@ -515,8 +515,13 @@ class MS_FittingService3D(object):
                             hits1 = hits[:bin1+4] # have at least 5 points
                             #print 'short data1: ',hits1
                             b1, e1, c1, b2, e2, c2 = self.short_fit(hits1)
-                            fr.add_fitter(l, (b1,e1,c1,bins,angles))
-                            fr.add_fitter(l, (b2,e2,c2,bins,angles))
+                            if c1>0 and c2>0:
+                                # concatenate
+                                bestshort = b1+b2
+                                errshort = e1+e2
+                                tchi = c1+c2
+                                fr.add_fitter(l, (bestshort,errshort,tchi,bins,angles))
+                            #fr.add_fitter(l, (b2,e2,c2,bins,angles))
                             # results[l].append((b1,e1,c1,bins,angles))
                             # results[l].append((b2,e2,c2,bins,angles))
                         else:
@@ -528,15 +533,22 @@ class MS_FittingService3D(object):
                             #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
                             stvals = [icxy,slxy,icxz,slxz]
                             bestfit, error, chi, d1,d2 = ms3d.fitter(hits1,stvals)
-                            fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                            if chi>0:
+                                fr.add_fitter(l, (bestfit,error,chi,bins,angles))
                             # results[l].append((bestfit,error,chi,bins,angles))
 
                         if bin2>len(hits)-6:
                             hits2 = hits[bin2-5:] # have at least 5 points
                             #print 'short data2: ',hits2
                             b1, e1, c1, b2, e2, c2 = self.short_fit(hits2)
-                            fr.add_fitter(l, (b1,e1,c1,bins,angles))
-                            fr.add_fitter(l, (b2,e2,c2,bins,angles))
+                            if c1>0 and c2>0:
+                                # concatenate
+                                bestshort = b1+b2
+                                errshort = e1+e2
+                                tchi = c1+c2
+                                fr.add_fitter(l, (bestshort,errshort,tchi,bins,angles))
+                            #fr.add_fitter(l, (b1,e1,c1,bins,angles))
+                            #fr.add_fitter(l, (b2,e2,c2,bins,angles))
                             # results[l].append((b1,e1,c1,bins,angles))
                             # results[l].append((b2,e2,c2,bins,angles))
                         else:
@@ -548,13 +560,14 @@ class MS_FittingService3D(object):
                             #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
                             stvals = [icxy,slxy,icxz,slxz]
                             bestfit, error, chi, d1,d2 = ms3d.fitter(hits2,stvals)
-                            fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                            if chi>0:
+                                fr.add_fitter(l, (bestfit,error,chi,bins,angles))
                             # results[l].append((bestfit,error,chi,bins,angles))
 
-                else: # initial fit failed
-                    fr.add_fitter(l, (bestfit,error,chi,[],[]))
+                    #else: # initial fit failed
+                    #fr.add_fitter(l, (bestfit,error,chi,[],[]))
                     # results[l] = [(bestfit,error,chi,[],[])]
-            candidates.append(fr)
+                    candidates.append(fr)
             # cluster[cpaths.id] = fr
         return candidates
 

@@ -100,29 +100,29 @@ def helix_calopar(hfit, info):
     interpoints = []
     if type==0: # main
         ponp = caloplane._get_point()
-        planetup = (ponp.x,ponp.y,1.0,0.0) # xaxis is normal
+        planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,1.0,0.0) # [m] xaxis is normal
         for h in helices:
             tup = h.intersectionXY(planetup)
             if tup is None: # intersection failed
                 return None
-            p = EU.Point3(tup[0], tup[1], tup[2])
+            p = EU.Point3(tup[0]*1.0e3, tup[1]*1.0e3, tup[2]*1.0e3) # [mm]
             interpoints.append(p)
     elif type==1: # xwall
         ponp = caloplane._get_point()
-        planetup = (ponp.x,ponp.y,0.0,1.0) # yaxis is normal
+        planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,0.0,1.0) # [m] yaxis is normal
         for h in helices:
             tup = h.intersectionXY(planetup)
             if tup is None: # intersection failed
                 return None
-            p = EU.Point3(tup[0], tup[1], tup[2])
+            p = EU.Point3(tup[0]*1.0e3, tup[1]*1.0e3, tup[2]*1.0e3) # [mm]
             interpoints.append(p)
     else:
         zplane = caloplane._get_point().z
         for h in helices:
-            tup = h.intersectionZ(zplane)
+            tup = h.intersectionZ(zplane*1.0e-3) # [m]
             if tup is None: # intersection failed
                 return None
-            p = EU.Point3(tup[0], tup[1], tup[2])
+            p = EU.Point3(tup[0]*1.0e3, tup[1]*1.0e3, tup[2]*1.0e3) # [mm]
             interpoints.append(p)
 
     ellipse = get_ellipse(interpoints, type)
@@ -205,7 +205,7 @@ def create_lines(linepar):
 
 
 def hit_the_block(intA, intB, info):
-#    print 'Got: type=%d, side=%d, wall=%d, column=%d, row=%d'%(info[0],info[1],info[4],info[2],info[3])
+    #print 'Got: type=%d, side=%d, wall=%d, column=%d, row=%d'%(info[0],info[1],info[4],info[2],info[3])
     type = info[0]
     side = info[1]
     column = info[2]
@@ -218,11 +218,11 @@ def hit_the_block(intA, intB, info):
         
         dy = Interval(yinit + 1.49, yinit + 1.5 + 256.01)
         dz = Interval(zinit + 1.49, zinit + 1.5 + 256.01)
-#        print 'Got intervals y, z: '
-#        print intA
-#        print dy
-#        print intB
-#        print dz
+        #print 'Got intervals y, z: '
+        #print 'fit y: ',intA
+        #print 'truth y: ',dy
+        #print 'fit z: ',intB
+        #print 'truth z: ',dz
         
         
         if (intA.overlap(dy)) and (intB.overlap(dz)):
@@ -315,7 +315,10 @@ def extrapolate_helix(hfit,fitside,calohit):
 
     '''
     calo_mi = calohit.meta_info
+    #print calohit
+    #print 'extrap helix: fitside: ',fitside
     if not fitside==calo_mi[3]: # calo and fit on opposite tracker halfs
+        #print 'extrap helix: wrong side.' 
         return []
 
     c = helix_calopar(hfit, calo_mi)
@@ -323,7 +326,7 @@ def extrapolate_helix(hfit,fitside,calohit):
         return []
 
     f = helix_foilpar(hfit)
-#    print 'HELIX calo par: ', c
+    #print 'HELIX calo par: ', c
 
     if particle_test(c,calo_mi): # is a particle
         binflag = False # no kinks here
@@ -340,8 +343,9 @@ def extrapolate_line(lines,fitside,calohit):
     or a broken line giving two line segments in list for extrapolation
     to left and right. 
     '''
-    calo_mi = calohit.meta_info
+    calo_mi = calohit.meta_info 
     if not fitside==calo_mi[3]: # calo and fit on opposite tracker halfs
+        #print 'extrap line: wrong side.' 
         return []
     
     if len(lines)<2:
@@ -361,6 +365,7 @@ def extrapolate_line(lines,fitside,calohit):
             return [] # was path leading nowhere, no associated calo hit
 
     else: # this is the broken line fit result, no Migrad
+        #print 'extrap: broken line case: ',lines
         linepar = lines[0]
         f = foilpar(linepar) # extrapolator to foil
         linepar = lines[1]

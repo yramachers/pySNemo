@@ -268,7 +268,7 @@ class gcylinder_truth(object):
     def __str__(self):
         s = "Geiger Truth Cylinder"
         s += "Start (x,y,z = (%f,%f,%f)\n" % (self.x0,self.y0,self.z0)
-        s += "Start (x,y,z = (%f,%f,%f)\n" % (self.x1,self.y1,self.z1)
+        s += "Stop (x,y,z = (%f,%f,%f)\n" % (self.x1,self.y1,self.z1)
         s += "Time = %f\n" % self.time
         return s
     

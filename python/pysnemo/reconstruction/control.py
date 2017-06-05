@@ -120,73 +120,78 @@ class FitExtrapolatorService(object):
         for calohit in calohits:
             calo_associated = False
             paths = []
-            for cand in data: # FitResults objects
+            for tup in data: # three fitters in tuple
                 results = []
-                for l,fitresult in cand.fitterpaths.iteritems(): # extract Fit object
-                    counter = 0
-                    for entry in fitresult:
-                        if isinstance(entry,tuple): # is a line fit
-                            counter += 1
-                    if counter < 2: # not a broken line fit
-                        for item in fitresult: # either one or two fits in there
-                            if isinstance(item,tuple): # unbroken line fit
-                                out = extra.extrapolate_line([item],cand.side,calohit)
-                                if len(out): # successful extrapolation
-                                    particle = Particle((cand.id,l,0)) # tuple as id
-                                    particle.set_vertex_foil(out[0])
-                                    particle.set_vertex_calo(out[1])
-                                    particle.set_calo_hit(calohit)
-                                    particle.set_fitter(item)
-                                    calo_associated = True
-                                    results.append(particle) 
-                            else: # is a HelixFit object
-                                out = extra.extrapolate_helix(item,cand.side,calohit)
-                                if len(out): # successful extrapolation
-                                    particle = Particle((cand.id,l,1)) # tuple as id
-                                    particle.set_vertex_foil(out[0])
-                                    particle.set_vertex_calo(out[1])
-                                    particle.set_calo_hit(calohit)
-                                    particle.set_fitter(item)
-                                    calo_associated = True
-                                    results.append(particle)
-                        
-                    else: # broken line fit
-                        grouptuples = []
-                        for item in fitresult: # several tuples for broken fit
-                            if isinstance(item,tuple): # exclude possible helix fit
-                                grouptuples.append(item) # ignore helix when broken line fitted
+                for cand in tup: # FitResults objects
+                    for l,fitresult in cand.fitterpaths.iteritems(): # extract Fit object
+                        counter = 0
+                        for entry in fitresult:
+                            if isinstance(entry,tuple): # is a line fit
+                                counter += 1
+                        if counter < 2: # not a broken line fit
+                            for item in fitresult: # either one or two fits in there
+                                if isinstance(item,tuple) and item[2]>=0: # unbroken line fit with valid chi2
+                                    #print 'found line tuple ',item
+                                    out = extra.extrapolate_line([item],cand.side,calohit)
+                                    if len(out): # successful extrapolation
+                                        #print 'line extrapolation done.'
+                                        particle = Particle((cand.id,l,0)) # tuple as id
+                                        particle.set_vertex_foil(out[0])
+                                        particle.set_vertex_calo(out[1])
+                                        particle.set_calo_hit(calohit)
+                                        particle.set_fitter(item)
+                                        calo_associated = True
+                                        results.append(particle) 
+                                elif not isinstance(item,tuple): # is a HelixFit object
+                                    out = extra.extrapolate_helix(item,cand.side,calohit)
+                                    if len(out): # successful extrapolation
+                                        #print 'made a helix extrapolation.'
+                                        particle = Particle((cand.id,l,1)) # tuple as id
+                                        particle.set_vertex_foil(out[0])
+                                        particle.set_vertex_calo(out[1])
+                                        particle.set_calo_hit(calohit)
+                                        particle.set_fitter(item)
+                                        calo_associated = True
+                                        results.append(particle)
 
-                        start = grouptuples[1] # [0] was the initial fit
-                        end = grouptuples[-1]
-                    
-                        if len(start[0])==2: # short fit 2D
-                            next = grouptuples[2] # second short fit
-                            b = start[0]+next[0] # concatenate
-                            e = start[1]+next[1]
-                            left = (b,e,start[2],start[3],start[4])
-                        else:
-                            left = start
-                    #print 'left tuple: ',left
-                        if len(end[0])==2:
-                            previous = grouptuples[-2] # second short fit
-                            b = previous[0]+end[0] # concatenate
-                            e = previous[1]+end[1]
-                            right = (b,e,end[2],end[3],end[4])
-                        else:
-                            right = end
-                    #print 'right tuple: ',right
-                        out = extra.extrapolate_line([left,right],cand.side,calohit)
-                    #print 'Extrapolate Line result 2: ',out
-                        if len(out): # successful extrapolation
-                            particle = Particle((cand.id,l,2)) # tuple as id
-                            particle.set_vertex_foil(out[0])
-                            particle.set_vertex_calo(out[1])
-                            particle.set_calo_hit(calohit)
-                            particle.set_fitter(item)
-                            particle.set_kink(out[2])
-                            particle.set_angles(out[3])                        
-                            calo_associated = True
-                            results.append(particle)
+                        else: # broken line fit
+                            grouptuples = []
+                            for item in fitresult: # several tuples for broken fit
+                                if isinstance(item,tuple): # exclude possible helix fit
+                                    grouptuples.append(item) # ignore helix when broken line fitted
+
+                            start = grouptuples[1] # [0] was the initial fit
+                            end = grouptuples[-1]
+
+                            if len(start[0])==2: # short fit 2D
+                                next = grouptuples[2] # second short fit
+                                b = start[0]+next[0] # concatenate
+                                e = start[1]+next[1]
+                                left = (b,e,start[2],start[3],start[4])
+                            else:
+                                left = start
+                        #print 'left tuple: ',left
+                            if len(end[0])==2:
+                                previous = grouptuples[-2] # second short fit
+                                b = previous[0]+end[0] # concatenate
+                                e = previous[1]+end[1]
+                                right = (b,e,end[2],end[3],end[4])
+                            else:
+                                right = end
+                        #print 'right tuple: ',right
+                            out = extra.extrapolate_line([left,right],cand.side,calohit)
+                        #print 'Extrapolate Line result 2: ',out
+                            if len(out): # successful extrapolation
+                                #print 'made a broken line extrapolation.'
+                                particle = Particle((cand.id,l,2)) # tuple as id
+                                particle.set_vertex_foil(out[0])
+                                particle.set_vertex_calo(out[1])
+                                particle.set_calo_hit(calohit)
+                                particle.set_fitter(item)
+                                particle.set_kink(out[2])
+                                particle.set_angles(out[3])                        
+                                calo_associated = True
+                                results.append(particle)
                 paths.append(results)
             if calo_associated: # store listof particles with calohit
                 output[calohit.meta_info] = paths
@@ -340,6 +345,8 @@ class ConsolidatorService(object):
                 if isinstance(paths,list): # found particles
                     if len(paths)>0:
                         collection = self.select_particles(paths)
+                        #print 'particle selected ',collection[0]
+                        #print 'fitter with that particle: ',collection[0].fitter
                         result.append(collection)
                 else:
                     result.append(paths) # is a single calo_hit object

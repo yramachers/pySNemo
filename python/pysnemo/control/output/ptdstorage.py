@@ -242,8 +242,12 @@ class ptdToRoot(object):
 				self.ptdStruct.chargeerr.push_back(0.0)
 				self.ptdStruct.foil_dir_x.push_back(1.0)
 				linepar = fitter[0]
-				self.ptdStruct.foil_dir_y.push_back(linepar[1])# slope xy
-				self.ptdStruct.foil_dir_z.push_back(linepar[3])# slope xz
+				if len(linepar)>2:
+					self.ptdStruct.foil_dir_y.push_back(linepar[1])# slope xy
+					self.ptdStruct.foil_dir_z.push_back(linepar[3])# slope xz
+				else:
+					self.ptdStruct.foil_dir_y.push_back(linepar[1])# slope xy
+					self.ptdStruct.foil_dir_z.push_back(linepar[1])# slope xy
 
 			chit = particle.calo_hit
 			calomi = chit.meta_info

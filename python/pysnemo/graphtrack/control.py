@@ -157,8 +157,8 @@ class TrackingService(object):
                 # find out connections between any two rings
                 gg=cleangraph(hitsdict,self.sigma) # sigma tolerance
                 nd=gg.graph.nodes()
-#                if self.sigma==self.initsigma:
-#                    print 'all nodes: ',nd
+                #if self.sigma==self.initsigma:
+                    #print 'all nodes: ',nd
                 # find nearest match in nodes to start,end points
                 # generous check
                 startcopy=[]

@@ -222,7 +222,7 @@ class CAService(object):
             tracks = self._uncluster(ca.getTracks())
             
             # 4. Transform back to list of plain hits
-            output_tracks = self._transform_hits_out(tracks)
+            output_tracks = self._transform_hits_out(tracks, data)
             
             # 5. Uniquely assign hits to a cluster
             unique_tracks = unique_hit_assignment(output_tracks)
@@ -266,20 +266,20 @@ class CAService(object):
                 return []
         return cluster.getPoints()
 
-    def _transform_hits_out(self, tracks):
+    def _transform_hits_out(self, tracks, original):
         """Convert a list of form [list of CA hits, ...] to a list of
         form [list of tracker_hits, ...]
         """
         output_tracks = [ ]
+        allinfo = []
+        for hit in original:
+            allinfo.append(hit.meta_info)
         for track in tracks:
             output = [ ]
             for ca_hit in track:
-                coords = ca_hit.getCoordinates()
-                err = ca_hit.getErrors()
-                plain_hit = tracker_hit(coords[0], coords[1], coords[2], err[1],ca_hit.getRadius(),err[0])
                 mi = ca_hit.getMeta_data()
-                plain_hit.set_info(mi[0],mi[1],mi[2],mi[3],mi[4],mi[5])
-                output.append(plain_hit)
+                idx = allinfo.index(mi)
+                output.append(original[idx])
             output_tracks.append(output)
         return output_tracks
     
