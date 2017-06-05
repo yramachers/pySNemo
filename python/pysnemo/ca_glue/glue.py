@@ -302,6 +302,8 @@ class RoadSweeper(object):
 		self.cls = data
 		self.ggdata = raw_data
 		self.ggdatami = [trh.meta_info for trh in raw_data]
+		self.out = { }
+		self.noise = []
 		if len(data)<1:
 			print 'No data to sweep in RoadSweeper!'
 		else:
@@ -344,8 +346,6 @@ class RoadSweeper(object):
 				
 	def _sweep(self):
 		# find all  non clustered hits
-		self.out = { }
-		self.noise = []
 		temp = { }
 		miset = set()
 		indexset = set()
