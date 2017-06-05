@@ -75,7 +75,7 @@ def cleanpicture(c, r, info, yintercept):
         return collection[pick]
 
 
-Nsims = 1000 # Number of simulated lines
+Nsims = 10 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
 file = root.TFile("/tmp/single_vertex_helix.tsim","recreate")
@@ -128,7 +128,8 @@ yinterc = 0.0
 for i in range(Nsims):
     lrtracker = random.randint(0,1) # pick a side randomly
     #lrtracker = 1 # all on the right tracker half
-    struc = tgen.single_random_momentum(yinterc,lrtracker) # x=0 fixed for this generator
+    #struc = tgen.single_random_momentum(yinterc,lrtracker) # x=0 fixed for this generator
+    struc = tgen.single_random_momentum_with_z(yinterc,lrtracker) # x=0 fixed for this generator
 
     cells, radii = wgr.hits(struc, lrtracker) # left/right tracker half
     info = wgr.wireinfo
@@ -171,11 +172,12 @@ for i in range(Nsims):
         ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
 
     counter = 0
+    print ncells
     for w,r,mi in zip(ncells, nradii, ninfo):
         dataStruct.radius.push_back(r)
         dataStruct.wirex.push_back(w[0])
         dataStruct.wirey.push_back(w[1])
-        dataStruct.wirez.push_back(0.0)
+        dataStruct.wirez.push_back(w[2])
         dataStruct.gridid.push_back(counter)
         side = mi[0] # wire side
         row = mi[1] # wire column

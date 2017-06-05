@@ -54,6 +54,7 @@ class demonstratorgrid(object):
         """
         zvec = euclid.Vector3(0.0,0.0,1.0) # zaxis vector for 3D wire line
         darr = np.zeros((self.rows, self.columns))
+        zcoord = np.zeros((self.rows, self.columns))
 
         if side < 1:
             tracker = self.grid_left
@@ -67,10 +68,14 @@ class demonstratorgrid(object):
                 if isinstance(line, euclid.Line3): # input was a Line3 object
                     pos = euclid.Point3(entry[n][0], entry[n][1], 0.0) # point of wire in grid
                     wire = euclid.Line3(pos,zvec) # wire into a vertical 3D line
-                    darr[m][n] = wire.connect(line).length # shortest distance line to line in 3D
+                    segm = wire.connect(line)
+                    zcoord[m][n] = segm.p.z
+                    darr[m][n] = segm.length # shortest distance line to line in 3D
 
                 elif isinstance(line, HX.helix): # input was a Helix object
                     distance = line.GetDistanceToPoint((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 0.0)) # input in [m]
+                    isecpoint = line.intersectionXY((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 1.0, 0.0)) # tuple
+                    zcoord[m][n] = isecpoint[2]*1.0e3 # [mm]
                     darr[m][n] = distance[0]*1.0e3 # [mm] shortest distance helix to wire point in 2D
 
                 else:
@@ -83,8 +88,11 @@ class demonstratorgrid(object):
         iarr,jarr = np.where(darr <= (0.51*self.d)) #allow minimal overlap
         for ind,item in enumerate(iarr):
             jind = jarr[ind]
+            pair = list(tracker[item][jind])
+            pair.append(zcoord[item][jind])
+            #print 'hit: ',pair
             self.wireinfo.append((side, jind, item)) # side, row, column
-            cells.append(tracker[item][jind])
+            cells.append(pair) # wire (x,y) and z concatenated
             radius.append(darr[item][jind])
   
         return cells, radius
@@ -166,6 +174,13 @@ class track_generator(object):
         return euclid.Line3(pos,vec)
 
 
+    def single_line_manual_with_z(self, slopey, slopez, intercepty = 0.0, interceptz = 0.0):
+        # no container needed
+        vec = euclid.Vector3(1.0, slopey, slopez)
+        pos = euclid.Point3(0.0, intercepty, interceptz) # fix at x=0 plane -> foil plane
+        return euclid.Line3(pos,vec)
+
+
     def single_line_random_slope(self, intercept = 0.0):
         # no container needed
         angle = random.uniform(-pi*0.5+0.17, pi*0.5-0.17) # taking vertical out
@@ -229,6 +244,24 @@ class helix_generator(object):
         px = random.uniform(0.3,1.4) # random momentum x, right
         py = random.uniform(-0.1,0.1) # random momentum y 
         pz = 0.0 # try only 2D on wire distance
+
+        if side==1: # right tracker
+            charge = -1.0 # unit [e]
+        else:
+            charge = 1.0 # unit [e]
+
+        momentum = (px,py,pz) # unit [MeV/c]
+        bfield = 2.5e-3 # 25 Gauss
+
+        return HX.helix(pos,momentum,charge,bfield)
+
+
+    def single_random_momentum_with_z(self, intercept = 0.0, side=0):
+        pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
+
+        px = random.uniform(0.3,1.4) # random momentum x, right
+        py = random.uniform(-0.1,0.1) # random momentum y 
+        pz = random.uniform(-0.1,0.1) # try 3D
 
         if side==1: # right tracker
             charge = -1.0 # unit [e]
