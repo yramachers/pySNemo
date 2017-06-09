@@ -548,6 +548,13 @@ class ToySimRun(object):
         self.datastruct.grid_layer = ROOT.std.vector('int')()
         self.datastruct.grid_column = ROOT.std.vector('int')()
         self.datastruct.break_layer = ROOT.std.vector('int')()
+        self.datastruct.charge = ROOT.std.vector('int')()
+        self.datastruct.calo_id = ROOT.std.vector('int')()
+        self.datastruct.calo_type = ROOT.std.vector('int')()
+        self.datastruct.calo_side = ROOT.std.vector('int')()
+        self.datastruct.calo_wall = ROOT.std.vector('int')()
+        self.datastruct.calo_row = ROOT.std.vector('int')()
+        self.datastruct.calo_column = ROOT.std.vector('int')()
 
         self.tree.SetBranchAddress('dirx', ROOT.AddressOf(self.datastruct, "dirx") )
         self.tree.SetBranchAddress('diry', ROOT.AddressOf(self.datastruct, "diry") )
@@ -567,12 +574,20 @@ class ToySimRun(object):
         self.tree.SetBranchAddress('grid_layer', ROOT.AddressOf(self.datastruct, "grid_layer") )
         self.tree.SetBranchAddress('grid_column', ROOT.AddressOf(self.datastruct, "grid_column") )
         self.tree.SetBranchAddress('break_layer', ROOT.AddressOf(self.datastruct, "break_layer") )
+        self.tree.SetBranchAddress('charge', ROOT.AddressOf(self.datastruct, "charge") )
+        self.tree.SetBranchAddress('calo_id', ROOT.AddressOf(self.datastruct, "calo_id") )
+        self.tree.SetBranchAddress('calo_type', ROOT.AddressOf(self.datastruct, "calo_type") )
+        self.tree.SetBranchAddress('calo_side', ROOT.AddressOf(self.datastruct, "calo_side") )
+        self.tree.SetBranchAddress('calo_wall', ROOT.AddressOf(self.datastruct, "calo_wall") )
+        self.tree.SetBranchAddress('calo_row', ROOT.AddressOf(self.datastruct, "calo_row") )
+        self.tree.SetBranchAddress('calo_column', ROOT.AddressOf(self.datastruct, "calo_column") )
 
 
         self.tree.GetEntry(index) # now self.datastruct is filled
 
         event["raw"] = {}
         event["raw"]["gg"] = self.__build_observed_gg()
+        event["raw"]["calo_hits"] = self.__build_calohits()
         event["raw"]["truthsim"] = self.__build_truth()
 
         return event
@@ -610,6 +625,27 @@ class ToySimRun(object):
         return hits
 
 
+    def __build_calohits(self):
+        """return list of calorimeter hit data.
+        """
+        hits = []
+        for i in range(self.datastruct.calo_id.size()):
+            gg = EDM.calo_hit(1.0,0.1,1.0,0.1) # dummy values
+
+            id = self.datastruct.grid_id[i]
+            m = 0
+            t = self.datastruct.calo_type[i]
+            s = self.datastruct.calo_side[i]
+            w = self.datastruct.calo_wall[i]
+            r = self.datastruct.calo_row[i]
+            c = self.datastruct.calo_column[i]
+            gg.set_info(id,t,m,s,c,r,w)
+
+            hits.append(gg)
+            
+        return hits
+
+
     def __build_truth(self):
         """return list of truth objects used to create tracker hit data.
         """
@@ -629,8 +665,9 @@ class ToySimRun(object):
             pointx = self.datastruct.pointx[i]
             pointy = self.datastruct.pointy[i]
             pointz = self.datastruct.pointz[i]
+            charge = self.datastruct.charge[i]
             
-            par = (dirx, diry, dirz, pointx, pointy, pointz)
+            par = (dirx, diry, dirz, pointx, pointy, pointz, charge)
             gg = EDM.toytruth(i,par,bpcontainer) # from edm
 
             hits.append(gg)

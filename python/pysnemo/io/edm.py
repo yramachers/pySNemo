@@ -394,7 +394,7 @@ class toytruth(object):
     def __str__(self):
         s = "Toy simulation truth data\n"
         s += 'id = %d '%self.id
-        s += 'parameter: (%f, %f, %f, %f, %f, %f)\n'%self.parstore
+        s += 'parameter: (%f, %f, %f, %f, %f, %f, %d)\n'%self.parstore
         for i in range(len(self.bplist)): # only if bplist not empty
             s += 'break point x=%f, y=%f with angle=%f at layer %d.'%(self.bplist[i][0],self.bplist[i][1],self.bplist[i][2],self.bplist[i][3])
         return s
@@ -404,6 +404,9 @@ class toytruth(object):
 
     def getParameters(self):
         return self.parstore # as tuple
+
+    def getCharge(self):
+        return self.parstore[-1] # final entry
 
     def getbreakpointlist(self):
         return self.bplist

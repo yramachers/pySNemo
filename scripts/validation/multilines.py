@@ -75,7 +75,12 @@ class demonstratorgrid(object):
                 elif isinstance(line, HX.helix): # input was a Helix object
                     distance = line.GetDistanceToPoint((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 0.0)) # input in [m]
                     isecpoint = line.intersectionXY((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 1.0, 0.0)) # tuple
-                    zcoord[m][n] = isecpoint[2]*1.0e3 # [mm]
+                    if isecpoint is None: # try xz plane
+                        isecpoint = line.intersectionXY((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 0.0, 1.0))
+                        if isecpoint is None:
+                            zcoord[m][n] = 2.0*1.0e3 # not crossing volume, hence outside tracker
+                    else:
+                        zcoord[m][n] = isecpoint[2]*1.0e3 # [mm]
                     darr[m][n] = distance[0]*1.0e3 # [mm] shortest distance helix to wire point in 2D
 
                 else:
@@ -259,7 +264,7 @@ class helix_generator(object):
     def single_random_momentum_with_z(self, intercept = 0.0, side=0):
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
 
-        px = random.uniform(0.3,1.4) # random momentum x, right
+        px = random.uniform(0.5,1.4) # random momentum x, right
         py = random.uniform(-0.1,0.1) # random momentum y 
         pz = random.uniform(-0.1,0.1) # try 3D
 

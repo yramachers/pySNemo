@@ -40,6 +40,13 @@ ROOT.gROOT.ProcessLine(
    vector<int>*    grid_layer;\
    vector<int>*    grid_column;\
    vector<int>*    break_layer;\
+   vector<int>*    charge;\
+   vector<int>*    calo_id;\
+   vector<int>*    calo_type;\
+   vector<int>*    calo_side;\
+   vector<int>*    calo_wall;\
+   vector<int>*    calo_column;\
+   vector<int>*    calo_row;\
 };");
 
 ROOT.gROOT.ProcessLine(

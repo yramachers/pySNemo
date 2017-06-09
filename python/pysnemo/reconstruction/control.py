@@ -35,6 +35,7 @@ __all__ = ['FitExtrapolatorService', 'ConsolidatorService']
 import pysnemo.reconstruction.extrapolator as extra
 import pysnemo.reconstruction.alt_extrapolator as aext
 from pysnemo.io.edm import Particle
+from pysnemo.utility.interval import Interval
 import logging
 
 
@@ -337,6 +338,37 @@ class ConsolidatorService(object):
                 
                 
 
+    def remove_doubles(self, result):
+        block = [] # index store of unique particles
+        for idx in range(len(result)-1):
+            ptest = result[idx] # get a particle
+            if not isinstance(ptest,Particle):
+                continue
+            foiltest = ptest.foilvertex
+            ch = ptest.calo_hit
+            ch_mi = ch.meta_info
+            err = foiltest[2]-foiltest[0]
+            intA = Interval(foiltest[0]-2*err, foiltest[0]+2*err) #left/right 95% CL
+            err = foiltest[4]-foiltest[1]
+            intB = Interval(foiltest[5]-2*err, foiltest[4]+2*err) # top/bottom 95% CL
+            for i in range(idx+1,len(result)):
+                particle = result[i] # all subsequent particles
+                if not isinstance(particle,Particle):
+                    continue
+                foil = particle.foilvertex
+                testch = particle.calo_hit
+                testch_mi = testch.meta_info
+                err = foil[2]-foil[0]
+                dy = Interval(foil[3]-2*err, foil[2]+2*err) #left/right 95% CL
+                err = foil[4]-foil[1]
+                dz = Interval(foil[5]-2*err, foil[4]+2*err) # top/bottom 95% CL
+                # pointing at the same foil area and calorimeter
+                if intA.overlap(dy) and intB.overlap(dz) and ch_mi==testch_mi:
+                    block.append(idx)
+        out = [res for i,res in enumerate(result) if not i in block]
+        return out
+
+
     def process(self, data):
         # unravel the dictonaries to get to the full fit data
         result = []
@@ -350,7 +382,8 @@ class ConsolidatorService(object):
                         result.append(collection)
                 else:
                     result.append(paths) # is a single calo_hit object
-        out = self.clean_results(result)
+        clean = self.clean_results(result)
+        out   = self.remove_doubles(clean)
         return out
 
 

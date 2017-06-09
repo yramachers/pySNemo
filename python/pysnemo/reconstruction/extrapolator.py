@@ -72,8 +72,10 @@ def calopar(lines, info):
 
     interpoints = [] # center, left, right, top, bottom
     for line in lines:
+        #print 'testing line: ',line
         interpoints.append(line.intersect(caloplane)) # 5 Point3 objects
 
+    #print 'interpoints at calo: ',interpoints
     ellipse = get_ellipse(interpoints, info[1])
     return ellipse
 
@@ -175,30 +177,16 @@ def create_lines(linepar):
     vec = EU.Vector3(1.0,slxy,slxz)
     lc = EU.Line3(p,vec)
     # left
-    if (slxy>=0.0):
-        p = EU.Point3(0.0,icxy-err_icxy,icxz)
-        vec = EU.Vector3(1.0,slxy+err_slxy,slxz)
-        ll = EU.Line3(p,vec)
-    else:
-        p = EU.Point3(0.0,icxy-err_icxy,icxz)
-        vec = EU.Vector3(1.0,slxy-err_slxy,slxz)
-        ll = EU.Line3(p,vec)        
-    # right
-    p = EU.Point3(0.0,icxy+err_icxy,icxz)
     vec = EU.Vector3(1.0,slxy-err_slxy,slxz)
+    ll = EU.Line3(p,vec)        
+    # right
+    vec = EU.Vector3(1.0,slxy+err_slxy,slxz)
     lr = EU.Line3(p,vec)
     # top
-    if (slxz>=0.0):
-        p = EU.Point3(0.0,icxy,icxz-err_icxz)
-        vec = EU.Vector3(1.0,slxy,slxz+err_slxz)
-        lt = EU.Line3(p,vec)
-    else:
-        p = EU.Point3(0.0,icxy,icxz-err_icxz)
-        vec = EU.Vector3(1.0,slxy,slxz-err_slxz)
-        lt = EU.Line3(p,vec)
-    # bottom
-    p = EU.Point3(0.0,icxy,icxz+err_icxz)
     vec = EU.Vector3(1.0,slxy,slxz-err_slxz)
+    lt = EU.Line3(p,vec)
+    # bottom
+    vec = EU.Vector3(1.0,slxy,slxz+err_slxz)
     lb = EU.Line3(p,vec)
     return [lc,ll,lr,lt,lb]
 
@@ -350,6 +338,7 @@ def extrapolate_line(lines,fitside,calohit):
     
     if len(lines)<2:
         linepar = lines[0]
+        #print 'linepar: ',linepar
         ll = create_lines(linepar)
         f = foilpar(linepar)
         c = calopar(ll, calo_mi)

@@ -1,9 +1,8 @@
 import math
 import random
-import numpy as np
-from scipy.ndimage import label
 import ROOT as root
 import multilines as ML
+from pysnemo.utility import geometrycheck as gcheck
 
 root.gROOT.ProcessLine(
 "struct DataStruct{\
@@ -25,60 +24,19 @@ root.gROOT.ProcessLine(
    vector<int>*    grid_layer;\
    vector<int>*    grid_column;\
    vector<int>*    break_layer;\
+   vector<int>*    charge;\
+   vector<int>*    calo_id;\
+   vector<int>*    calo_type;\
+   vector<int>*    calo_side;\
+   vector<int>*    calo_wall;\
+   vector<int>*    calo_column;\
+   vector<int>*    calo_row;\
 };");
 
-
-def cleanpicture(c, r, info, yintercept):
-    '''
-    search for connected structures, 
-    select the one close to the reference point of the helix which
-    removes the returning branch if it exists.
-    '''
-    pic = np.zeros((113,9)) # half tracker hardwired
-    side = info[0][0] # same for all
-    rowpos = int(math.floor((yintercept+2464.0) / 44.0))
-
-    # turn wireinfo into picture
-    for entry in info:
-        pic[entry[2],entry[1]] = 1
-    anyslope = [[1,1,1], [1,1,1], [1,1,1]] # any slope structure
-
-    labels, nstruc = label(pic,anyslope)
-
-    if nstruc <2: # nothing else to do
-        return c, r, info
-    else:
-        ncells = []
-        nradii = []
-        ninfo  = []
-        clusteridx = { }
-        collection = []
-        for n in range(1,nstruc+1):
-            clusteridx[n] = np.where(labels==n) # all indices in labels
-        for k in clusteridx.keys():
-            for r,c in zip(clusteridx[k][0],clusteridx[k][1]):
-                ninfo.append((side,c,r))
-                nradii.append(radii[info.index((side,c,r))])
-                ncells.append(cells[info.index((side,c,r))])
-            collection.append((ncells, nradii, ninfo)) # structures fully separated in collection
-            ninfo  = []
-            ncells = []
-            nradii = []
-        pick = 0
-        for n, entry in enumerate(collection):
-            if (side, 0, rowpos) in entry[2]:
-                pick = n
-            elif (side, 0, rowpos-1) in entry[2]: # allow for nearest positions
-                pick = n
-            elif (side, 0, rowpos+1) in entry[2]: # +-1 around the integer row
-                pick = n
-        return collection[pick]
-
-
-Nsims = 10 # Number of simulated lines
+Nsims = 1000 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
-file = root.TFile("/tmp/single_vertex_helix.tsim","recreate")
+file = root.TFile("/tmp/illumination.tsim","recreate")
 tree = root.TTree("hit_tree","Hit data")
 tree.SetDirectory(file)
 
@@ -101,6 +59,13 @@ dataStruct.gridside = root.std.vector('int')()
 dataStruct.gridlayer = root.std.vector('int')()
 dataStruct.gridcolumn = root.std.vector('int')()
 dataStruct.breaklayer = root.std.vector('int')()
+dataStruct.charge = root.std.vector('int')()
+dataStruct.caloid = root.std.vector('int')()
+dataStruct.calotype = root.std.vector('int')()
+dataStruct.calowall = root.std.vector('int')()
+dataStruct.caloside = root.std.vector('int')()
+dataStruct.calorow = root.std.vector('int')()
+dataStruct.calocolumn = root.std.vector('int')()
 
 tree.Branch('dirx', dataStruct.dirx)
 tree.Branch('diry', dataStruct.diry)
@@ -120,20 +85,44 @@ tree.Branch('grid_side', dataStruct.gridside)
 tree.Branch('grid_layer', dataStruct.gridlayer)
 tree.Branch('grid_column', dataStruct.gridcolumn)
 tree.Branch('break_layer', dataStruct.breaklayer)
+tree.Branch('charge', dataStruct.charge)
+tree.Branch('calo_id', dataStruct.caloid)
+tree.Branch('calo_type', dataStruct.calotype)
+tree.Branch('calo_side', dataStruct.caloside)
+tree.Branch('calo_wall', dataStruct.calowall)
+tree.Branch('calo_row', dataStruct.calorow)
+tree.Branch('calo_column', dataStruct.calocolumn)
 
 wgr = ML.demonstratorgrid()
-tgen = ML.helix_generator() # only 2D helices!
-yinterc = 0.0
+tgen = ML.track_generator()
+dcalo = gcheck.demonstratorcalo()
 
 for i in range(Nsims):
-    lrtracker = random.randint(0,1) # pick a side randomly
-    #lrtracker = 1 # all on the right tracker half
-    #struc = tgen.single_random_momentum(yinterc,lrtracker) # x=0 fixed for this generator
-    struc = tgen.single_random_momentum_with_z(yinterc,lrtracker) # x=0 fixed for this generator
+    # random line xy slope for the straight line
+    angle = random.uniform(-math.pi*0.5+0.1, math.pi*0.5-0.1) # taking vertical out
+    sl = math.tan(angle)
+    # random line xz slope for the straight line
+    angle2 = random.uniform(-math.pi*0.5+0.1, math.pi*0.5-0.1) # taking vertical out
+    slxz = math.tan(angle2)
 
-    cells, radii = wgr.hits(struc, lrtracker) # left/right tracker half
+    dummy = tgen.single_line_manual_with_z(sl, slxz, 0.0, 0.0) # vertex on foil at x=0,y=0,z=0
+    lrtracker = random.randint(0,1) # pick left or right
+
+    cells, radii = wgr.hits(dummy, lrtracker) # left/right tracker half
     info = wgr.wireinfo
-
+    caloinfo= dcalo.calohits(dummy, lrtracker)
+    while len(caloinfo) < 1: # no calo was hit, try again
+        angle = random.uniform(-math.pi*0.5+0.1, math.pi*0.5-0.1) # taking vertical out
+        sl = math.tan(angle)
+        angle2 = random.uniform(-math.pi*0.5+0.1, math.pi*0.5-0.1) # taking vertical out
+        slxz = math.tan(angle2)
+        dummy = tgen.single_line_manual_with_z(sl, slxz, 0.0, 0.0) # vertex on foil at x=0,y=0
+        lrtracker = random.randint(0,1) # pick left or right
+        
+        cells, radii = wgr.hits(dummy, lrtracker) # left/right tracker half
+        info = wgr.wireinfo
+        caloinfo= dcalo.calohits(dummy, lrtracker)
+    calo_hit_point = dcalo.get_point()
 
     file.cd()
     # Prepare data structure for this line
@@ -155,25 +144,27 @@ for i in range(Nsims):
     dataStruct.gridlayer.clear() 
     dataStruct.gridcolumn.clear()
     dataStruct.breaklayer.clear()
+    dataStruct.charge.clear()
+    dataStruct.caloid.clear()
+    dataStruct.calotype.clear()
+    dataStruct.caloside.clear()
+    dataStruct.calowall.clear()
+    dataStruct.calorow.clear() 
+    dataStruct.calocolumn.clear()
 
-    # save the geometry truth data
-    # save a helix as parameter set
-    refp = struc.referencePoint # triplet
-    mom  = struc.momentum       # triplet, z=0 by default
-    charge = struc.charge       # number
-    dataStruct.dirx.push_back(mom[0]) # momenta in here
-    dataStruct.diry.push_back(mom[1])
-    dataStruct.dirz.push_back(charge) # use dirz for charge
-    dataStruct.pointx.push_back(refp[0]) # reference point here
-    dataStruct.pointy.push_back(refp[1])
-    dataStruct.pointz.push_back(refp[2])
-
-    if len(info): # only if there is any data at all
-        ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
+    dataStruct.dirx.push_back(dummy.v.x)
+    dataStruct.diry.push_back(dummy.v.y)
+    dataStruct.dirz.push_back(dummy.v.z)
+    dataStruct.pointx.push_back(calo_hit_point.x)
+    dataStruct.pointy.push_back(calo_hit_point.y)
+    dataStruct.pointz.push_back(calo_hit_point.z)
+    dataStruct.charge.push_back(0)
+#    dataStruct.pointx.push_back(dummy.p.x) # origin point
+#    dataStruct.pointy.push_back(dummy.p.y)
+#    dataStruct.pointz.push_back(dummy.p.z)
 
     counter = 0
-    print ncells
-    for w,r,mi in zip(ncells, nradii, ninfo):
+    for w,r,mi in zip(cells,radii,info):
         dataStruct.radius.push_back(r)
         dataStruct.wirex.push_back(w[0])
         dataStruct.wirey.push_back(w[1])
@@ -184,10 +175,22 @@ for i in range(Nsims):
         col = mi[2] # wire layer
         dataStruct.gridlayer.push_back(row)
         dataStruct.gridcolumn.push_back(col)
-        dataStruct.gridside.push_back(side)
+        dataStruct.gridside.push_back(side) # not covered yet 
         counter += 1 # count up all hits for entire event
+    type = caloinfo[0][1]
+    side = caloinfo[0][3]
+    col  = caloinfo[0][4]
+    row  = caloinfo[0][5]
+    wall = caloinfo[0][6]
+    dataStruct.caloid.push_back(0)
+    dataStruct.calorow.push_back(row)
+    dataStruct.calocolumn.push_back(col)
+    dataStruct.calotype.push_back(type)
+    dataStruct.caloside.push_back(side)
+    dataStruct.calowall.push_back(wall)
+        
 
     tree.Fill() # data structure fully filled, lines done
-
+    
 tree.Write() # write all lines to disk
 file.Close()
