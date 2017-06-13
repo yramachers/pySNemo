@@ -326,7 +326,7 @@ def extrapolate_helix(hfit,fitside,calohit):
         return []
 
     f = helix_foilpar(hfit)
-    print 'HELIX calo par: ', c
+    #print 'HELIX calo par: ', c
 
     if particle_test(c,calo_mi): # is a particle
         binflag = False # no kinks here
@@ -345,7 +345,7 @@ def extrapolate_line(lines,fitside,calohit):
     '''
     calo_mi = calohit.meta_info 
     if not fitside==calo_mi[3]: # calo and fit on opposite tracker halfs
-        print 'extrap line: wrong side.' 
+        #print 'extrap line: wrong side.' 
         return []
     
     if len(lines)<2:
