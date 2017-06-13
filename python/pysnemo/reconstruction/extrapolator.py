@@ -89,14 +89,26 @@ def helix_calopar(hfit, info):
     helices.append(helix)
     par = hfit.par
     err = hfit.errors
+    ulimit = par[3] + err[3]
+    llimit = par[3] - err[3]
+    # cap momentum errors for extrapolation
+    if abs(err[3]/par[3]) > 0.1: # omega to 10%
+        ulimit = par[3] + 0.1*par[3]
+        llimit = par[3] - 0.1*par[3]
+
+    if abs(err[4]/par[4]) > 0.1: # tan lambda to 10%
+        limit = 0.1*par[4]
+    else:
+        limit = err[4]
+
     # vary omega and tanlambda
-    pl = (par[0],par[1],par[2],par[3]+err[3],par[4])
+    pl = (par[0],par[1],par[2], ulimit,par[4])
     helices.append(HL.Par5Helix(pl,hfit.bf))
-    pr = (par[0],par[1],par[2],par[3]-err[3],par[4])
+    pr = (par[0],par[1],par[2], llimit,par[4])
     helices.append(HL.Par5Helix(pr,hfit.bf))
-    pt = (par[0],par[1],par[2],par[3],par[4]+err[4])
+    pt = (par[0],par[1],par[2],par[3], par[4]+limit)
     helices.append(HL.Par5Helix(pt,hfit.bf))
-    pb = (par[0],par[1],par[2],par[3],par[4]-err[4])
+    pb = (par[0],par[1],par[2],par[3], par[4]-limit)
     helices.append(HL.Par5Helix(pb,hfit.bf))
 
     interpoints = []
