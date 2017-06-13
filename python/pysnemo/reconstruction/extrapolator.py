@@ -96,10 +96,10 @@ def helix_calopar(hfit, info):
         ulimit = par[3] + 0.1*par[3]
         llimit = par[3] - 0.1*par[3]
 
-    if abs(err[4]/par[4]) > 0.1: # tan lambda to 10%
-        limit = 0.1*par[4]
-    else:
-        limit = err[4]
+#    if abs(err[4]/par[4]) > 1.0: # tan lambda to factor 2
+#        limit = par[4]
+#    else:
+    limit = err[4]
 
     # vary omega and tanlambda
     pl = (par[0],par[1],par[2], ulimit,par[4])
@@ -326,7 +326,7 @@ def extrapolate_helix(hfit,fitside,calohit):
         return []
 
     f = helix_foilpar(hfit)
-    #print 'HELIX calo par: ', c
+    print 'HELIX calo par: ', c
 
     if particle_test(c,calo_mi): # is a particle
         binflag = False # no kinks here
@@ -345,7 +345,7 @@ def extrapolate_line(lines,fitside,calohit):
     '''
     calo_mi = calohit.meta_info 
     if not fitside==calo_mi[3]: # calo and fit on opposite tracker halfs
-        #print 'extrap line: wrong side.' 
+        print 'extrap line: wrong side.' 
         return []
     
     if len(lines)<2:
