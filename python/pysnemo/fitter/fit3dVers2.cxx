@@ -137,26 +137,18 @@ double distance(double x,double y,double z,double ex,double ey,double ez,double 
   double offset;
   if (charge*sign>0.0) {
     phi = TMath::ATan2(y - ycentre, x - xcentre);
-    offset = (TMath::Pi() + newphi0)/TMath::TwoPi();
   }
   else {
     phi = TMath::ATan2(y - ycentre, x - xcentre) + TMath::Pi();
-    offset = (newphi0)/TMath::TwoPi() - 0.5;
   }    
-  int nCircles;
-  double xCirc = offset + (sign*charge*(z+z0))/(TMath::TwoPi()*tanlambda*radius);
-  if (xCirc==1.0)
-    nCircles = (int)(xCirc-1.0);
-  else
-    nCircles = (int)xCirc;
 
   double dphi;  
   if (charge*sign>0.0) 
-    dphi = TMath::TwoPi()*(Double_t)nCircles + phi - newphi0;
+    dphi = phi - newphi0;
   else
-    dphi = TMath::TwoPi()*(Double_t)nCircles + phi - newphi0 - TMath::Pi();
+    dphi = phi - newphi0 - TMath::Pi();
     
-  double zonhelix = z0 + sign*charge*radius*tanlambda*dphi;
+  double zonhelix = z0 - charge*radius*tanlambda*dphi;
   double distz =  TMath::Abs(zonhelix - z);
   double distxy = TMath::Sqrt((xcentre-x)*(xcentre-x) + (ycentre-y)*(ycentre-y));
   distxy = TMath::Abs(distxy - radius);  

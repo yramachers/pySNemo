@@ -83,12 +83,18 @@ def calopar(lines, info):
 def helix_calopar(hfit, info):
     caloplane = get_calorimeter_plane(info)
     type = info[1]
+    side = info[3]
+    wall = info[6]
 
     helices = []
     helix = hfit.hel # best fit helix
-    helices.append(helix)
-    par = hfit.par
+    par = helix.par # same as hfit.par
+    if side == 0: # left tracker
+        par4 = -par[4] # swap tan lambda for z orientation
+        par = (par[0],par[1],par[2],par[3],par4) # new tuple
     err = hfit.errors
+    helices.append(HL.Par5Helix(par,hfit.bf)) # best fit
+
     ulimit = par[3] + err[3]
     llimit = par[3] - err[3]
     # cap momentum errors for extrapolation
@@ -114,7 +120,10 @@ def helix_calopar(hfit, info):
     interpoints = []
     if type==0: # main
         ponp = caloplane._get_point()
-        planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,1.0,0.0) # [m] xaxis is normal
+        if side==0:
+            planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,1.0,0.0) # [m] xaxis is normal
+        else:
+            planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,-1.0,0.0) # [m] xaxis is normal
         for h in helices:
             tup = h.intersectionXY(planetup)
             if tup is None: # intersection failed
@@ -123,7 +132,10 @@ def helix_calopar(hfit, info):
             interpoints.append(p)
     elif type==1: # xwall
         ponp = caloplane._get_point()
-        planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,0.0,1.0) # [m] yaxis is normal
+        if wall==0:
+            planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,0.0,1.0) # [m] yaxis is normal
+        else:
+            planetup = (ponp.x*1.0e-3,ponp.y*1.0e-3,0.0,-1.0) # [m] yaxis is normal
         for h in helices:
             tup = h.intersectionXY(planetup)
             if tup is None: # intersection failed

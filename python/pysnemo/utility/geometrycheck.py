@@ -210,34 +210,33 @@ class demonstratorcalo(object):
         ci = []
         for t,s,w in self.store.keys(): # check each calo type
             thispoint = ()
-            #print 'keys: ',(t,s,w)
             #print 'calohits side = %d'%side
             if isinstance(structure,EU.Line3):
-                if s==side:
-                    plane = self.store[(t,s,w)][0]
-                    thispoint = structure.intersect(plane)
+                plane = self.store[(t,s,w)][0]
+                thispoint = structure.intersect(plane)
                 if isinstance(thispoint,EU.Point3):
                     caloinfo = self.calo_id(thispoint)
-                    if len(caloinfo): # not an empty tuple
+                    if len(caloinfo) and caloinfo[3]==side: # not an empty tuple
                         self.point.append(thispoint) # now the right units
                         ci.append(caloinfo) # found the calo hit
+                        #print 'calo info found: ',caloinfo
             else: # helix object, internal length units [m]
                 plane = self.store[(t,s,w)][0]
                 if t==0: # main wall
                     if s==side:
                         if side==0:
-                            planetup = (-435.0*1.0e-3,0.0,plane.n.x,plane.n.y)# input to helix method
+                            planetup = (-435.0*1.0e-3,0.0,1.0,0.0)# input to helix method
                             thispoint = structure.intersectionXY(planetup)
                         else:
-                            planetup = (435.0*1.0e-3,0.0,plane.n.x,plane.n.y)# input to helix method
+                            planetup = (435.0*1.0e-3,0.0,-1.0,0.0)# input to helix method
                             thispoint = structure.intersectionXY(planetup)
                 elif t==1: # xwall
                     if s==side:
                         if w==0:
-                            planetup = (0.0,-2505.5*1.0e-3,plane.n.x,plane.n.y)# input to helix method
+                            planetup = (0.0,-2505.5*1.0e-3,0.0,1.0)# input to helix method
                             thispoint = structure.intersectionXY(planetup)
                         else:
-                            planetup = (0.0,2505.0*1.0e-3,plane.n.x,plane.n.y)# input to helix method
+                            planetup = (0.0,2505.0*1.0e-3,0.0,-1.0)# input to helix method
                             thispoint = structure.intersectionXY(planetup)
                 elif t==2: # gveto
                     if s==side:

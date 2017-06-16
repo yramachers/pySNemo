@@ -79,7 +79,7 @@ class helix(object):
         else:
             nCircles = n2
 
-        self.z0 = self.referencePoint[2] + self.radius*self.tanlambda*(deltaphi + 2.0*pi*nCircles)
+        self.z0 = self.referencePoint[2] + self.radius*self.tanlambda*self.charge*(deltaphi + 2.0*pi*nCircles)
 
 
     def PointOnHelix(self, t=1.0):
@@ -115,17 +115,15 @@ class helix(object):
 
         if (self.charge*sign)>0:
             phi = atan2(point[1] - self.yCentre, point[0] - self.xCentre)
-            offset = (pi + phi0)/(2.0*pi)
         else:
             phi = atan2(point[1] - self.yCentre, point[0] - self.xCentre) + pi
-            offset = (phi0)/(2.0*pi) - 0.5
 
         if (self.charge*sign)>0:
             dPhi = phi - phi0
         else:
             dPhi = phi - phi0 - pi
 
-        zOnHelix = self.referencePoint[2] + sign*self.charge*self.radius*self.tanlambda*dPhi
+        zOnHelix = self.referencePoint[2] - self.charge*self.radius*self.tanlambda*dPhi
         distZ = abs(zOnHelix - point[2])
         distXY = sqrt((self.xCentre - point[0])**2.0 + (self.yCentre - point[1])**2.0)
         distXY = abs(distXY - self.radius)
@@ -142,10 +140,6 @@ class helix(object):
                (x0,y0,ax,ay)
         '''
         sign = self.Bfield/abs(self.Bfield)
-        if self.tanlambda==0.0:
-            return None
-        else:
-            signz = self.tanlambda/abs(self.tanlambda)
         (x0,y0,ay,ax) = plane # swapped ax, ay for correct surface normal
         AA = sqrt(ax*ax+ay*ay)
         BB = (ax*(x0 - self.xCentre) + ay*(y0 - self.yCentre)) / AA
@@ -167,14 +161,19 @@ class helix(object):
         dphi1 = phi1 - phi0
         dphi2 = phi2 - phi0
 
-        if (dphi1<0 and self.charge*sign>0):
-            dphi1 = dphi1 + 2.0*pi
-        elif (dphi1>0 and self.charge*sign<0):
-            dphi1 = dphi1 - 2.0*pi
-        if (dphi2<0 and self.charge*sign>0):
-            dphi2 = dphi2 + 2.0*pi
-        elif (dphi2>0 and self.charge*sign<0):
-            dphi2 = dphi2 - 2.0*pi
+        if dphi1>2.0*pi:
+            dphi1 -= 2.0*pi
+        if dphi2>2.0*pi:
+            dphi2 -= 2.0*pi
+
+#        if (dphi1<0 and self.charge*sign<0):
+#            dphi1 = dphi1 + 2.0*pi
+#        elif (dphi1>0 and self.charge*sign>0):
+#            dphi1 = dphi1 - 2.0*pi
+#        if (dphi2<0 and self.charge*sign<0):
+#            dphi2 = dphi2 + 2.0*pi
+#        elif (dphi2>0 and self.charge*sign>0):
+#            dphi2 = dphi2 - 2.0*pi
         
         tt1 = -self.charge * dphi1 * self.radius / self.pxy
         tt2 = -self.charge * dphi2 * self.radius / self.pxy
@@ -185,10 +184,10 @@ class helix(object):
         
         if (tt1<tt2):
             time = tt1
-            point = (xx1,yy1,self.referencePoint[2]+signz*time*abs(self.momentum[2]))
+            point = (xx1, yy1, self.referencePoint[2] + time*self.momentum[2])
         else:
             time = tt2
-            point = (xx2,yy2,self.referencePoint[2]+signz*time*abs(self.momentum[2]))
+            point = (xx2, yy2, self.referencePoint[2] + time*self.momentum[2])
 
         return point
 
@@ -242,7 +241,6 @@ class Par5Helix(object):
             phi0 += pi
         ref_point = (xatpca,yatpca,z0)
         pxy = unit_constant * Bfield * radius
-        #print 'Par5: pxy=',pxy
         momentum = (pxy*cos(phi0),pxy*sin(phi0),tanlambda*pxy)
         self.mom = momentum # for printing
         self.helix = helix(ref_point,momentum,charge,Bfield)
