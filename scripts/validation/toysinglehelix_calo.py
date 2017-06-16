@@ -81,6 +81,19 @@ def cleanpicture(c, r, info, yintercept):
                 pick = n
         return collection[pick]
 
+
+def main_wall_test(caloinfo, info, cells):
+    # checks piercings of the main wall in case there are two
+    rowpos = caloinfo[5]*259.0 - 1683.5 # pos in z
+    
+    for winfo, entry in zip(info, cells):
+        if winfo[1]==8: # for final wire row only, check position in z
+            if entry[2] >= rowpos-259.0 and entry[2] <= rowpos+259.0: # 50cm calo z interval
+                return True
+            else:
+                return False
+            
+
 Nsims = 1000 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
@@ -197,14 +210,17 @@ for i in range(Nsims):
     # save the geometry truth data
     for idx, ci in enumerate(caloinfo): # multiple calo hits with helix
         if ci[1]==0 and ci[3]==lrtracker: # main wall correct side
-            type = ci[1]
-            side = ci[3]
-            col  = ci[4]
-            row  = ci[5]
-            wall = ci[6]
-            #print 'picked: ',ci
-            calo_hit_point = dcalo.get_point(idx) # back as tuple here
-            #print 'at impact point: ',calo_hit_point
+            if main_wall_test(ci, ninfo, ncells):
+                type = ci[1]
+                side = ci[3]
+                col  = ci[4]
+                row  = ci[5]
+                wall = ci[6]
+                #print 'picked: ',ci
+                calo_hit_point = dcalo.get_point(idx) # back as tuple here
+                #print 'at impact point: ',calo_hit_point
+            else:
+                continue # loose that helix
         else:
             continue # loose that helix
 

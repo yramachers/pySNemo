@@ -57,8 +57,10 @@ class demonstratorgrid(object):
         zcoord = np.zeros((self.rows, self.columns))
 
         if side < 1:
+            sign = -1
             tracker = self.grid_left
         else:
+            sign = 1
             tracker = self.grid_right
 
         self.wireinfo = [] # clean start
@@ -74,13 +76,7 @@ class demonstratorgrid(object):
 
                 elif isinstance(line, HX.helix): # input was a Helix object
                     distance = line.GetDistanceToPoint((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 0.0)) # input in [m]
-                    isecpoint = line.intersectionXY((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 1.0, 0.0)) # tuple
-                    if isecpoint is None: # try xz plane
-                        isecpoint = line.intersectionXY((entry[n][0]*1.0e-3, entry[n][1]*1.0e-3, 0.0, 1.0))
-                        if isecpoint is None:
-                            zcoord[m][n] = 2.0*1.0e3 # not crossing volume, hence outside tracker
-                    else:
-                        zcoord[m][n] = isecpoint[2]*1.0e3 # [mm]
+                    zcoord[m][n] = sign*line.tanlambda * entry[n][0] # [mm]
                     darr[m][n] = distance[0]*1.0e3 # [mm] shortest distance helix to wire point in 2D
 
                 else:
@@ -243,17 +239,27 @@ class helix_generator(object):
         self.helices = [] # helix container
 
 
+    def single_manual(self, intercept, px, py, pz):
+        pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
+        charge = -1.0 # unit [e]
+
+        momentum = (px,py,pz) # unit [MeV/c]
+        bfield = 2.5e-3 # 25 Gauss
+
+        return HX.helix(pos,momentum,charge,bfield)
+
+
     def single_random_momentum(self, intercept = 0.0, side=0):
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
+        charge = -1.0 # unit [e]
 
-        px = random.uniform(0.3,1.4) # random momentum x, right
+        if side==0: # left tracker
+            px = random.uniform(-1.4,-0.3) # random momentum x, right
+        else:
+            px = random.uniform(0.3,1.4) # random momentum x, right
+
         py = random.uniform(-0.1,0.1) # random momentum y 
         pz = 0.0 # try only 2D on wire distance
-
-        if side==1: # right tracker
-            charge = -1.0 # unit [e]
-        else:
-            charge = 1.0 # unit [e]
 
         momentum = (px,py,pz) # unit [MeV/c]
         bfield = 2.5e-3 # 25 Gauss
@@ -263,15 +269,15 @@ class helix_generator(object):
 
     def single_random_momentum_with_z(self, intercept = 0.0, side=0):
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
+        charge = -1.0 # unit [e]
+        if side==0: # right tracker
+            px = random.uniform(-1.4,-0.5) # random momentum x, right
+        else:
+            px = random.uniform(0.5,1.4) # random momentum x, right
 
-        px = random.uniform(0.5,1.4) # random momentum x, right
+
         py = random.uniform(-0.1,0.1) # random momentum y 
         pz = random.uniform(-0.1,0.1) # try 3D
-
-        if side==1: # right tracker
-            charge = -1.0 # unit [e]
-        else:
-            charge = 1.0 # unit [e]
 
         momentum = (px,py,pz) # unit [MeV/c]
         bfield = 2.5e-3 # 25 Gauss
