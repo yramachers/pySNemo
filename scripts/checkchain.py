@@ -12,7 +12,9 @@ from pysnemo.cellular_automaton.control import CAService
 from pysnemo.ca_glue.control import GlueService, RoadService
 from pysnemo.graphtrack.control import TrackingService
 from pysnemo.fitter.control import FittingService
-from pysnemo.utility.interval import Interval
+from pysnemo.reconstruction.control import FitExtrapolatorService
+from pysnemo.reconstruction.control import ConsolidatorService
+from pysnemo.io.edm import Particle
 
 
 
@@ -28,6 +30,28 @@ def print_event_info(event):
         for k in event.getKeys():
             print k
 	
+
+def print_truth(event):
+	''' 
+	This function prints the comparison of fit parameter with truth input
+	'''
+	d = event.getKeyValue('raw')
+	if 'truthsim' in d:
+		truth = d['truthsim']
+		for toytruth in truth:
+			print toytruth # helix:(px,py,charge,refx,refy,refz)
+
+
+def print_calo(event):
+	''' 
+	This function prints the calorimeter data
+	'''
+	d = event.getKeyValue('raw')
+	if 'calo_hits' in d:
+		truth = d['calo_hits']
+		for toytruth in truth:
+			print toytruth
+
 
 def check_sweep(event):
 	cluster_dict = event.getKeyValue('sweeping_out') # returns dict
@@ -62,8 +86,8 @@ def noise_to_cluster(event):
 	'''
 	cluster_dict = event.getKeyValue('sweeping_out') # returns dict
 	noise = event.getKeyValue('sweeping_out_noise') # returns list
-	print 'Sweeping has %d clusters'%len(cluster_dict)
-	print 'Sweeping has %d noise hits'%len(noise)
+	#print 'Sweeping has %d clusters'%len(cluster_dict)
+	#print 'Sweeping has %d noise hits'%len(noise)
 	if len(noise)>=3: # anything else should remain noise for now
 		infolist = [trh.meta_info for trh in noise]
 		infoarray = np.array(infolist)
@@ -121,104 +145,44 @@ def print_fitter(event):
 	'''
 	fittuple = event.getKeyValue('fit_out') # returns dict
 	for tup in fittuple:
-		print 'FITTER: Found %d results'%len(fitlist)
+		print 'FITTER: Found %d results'%len(fittuple)
 		for entry in tup:
 			for pnumber, val in entry.fitterpaths.iteritems(): # val a list of fitters
 				for item in val:
 					if isinstance(item,tuple):
-						print '\nCluster key: %d, Candidates key = %s, Chisq = %f' % (entry.id,pnumber,item[2])
-						for i in range(len(item[0])):
-							print 'Fit parameter %d: %f +- %f'%(i,item[0][i],item[1][i])
+						print '\nCluster key: %d, Candidates key = %s, Chisq = %f, Side=%d' % (entry.id,pnumber,item[2],entry.side)
+#						for i in range(len(item[0])):
+#							print 'Fit parameter %d: %f +- %f'%(i,item[0][i],item[1][i])
 					else: # a HelixFit object
 						print item
 
 
-def print_validation(event):
+def print_consolidator(event):
 	''' 
-	This function prints the comparison of fit parameter with truth input
+	This function prints the consolidator output
 	'''
-	d = event.getKeyValue('raw')
-	if 'truthsim' in d:
-		truth = d['truthsim']
-		for toytruth in truth:
-			print toytruth # helix:(px,py,charge,refx,refy,refz)
+	final = event.getKeyValue('final_out') # returns dict
+	if final is not None:
+		sump = 0
+		sumc = 0
+		for entry in final:
+			if isinstance(entry,Particle):
+				sump += 1
+			else:
+				sumc += 1
+			print entry
+		print '%d particle(s), %d calo hits'%(sump,sumc)
 
-	fittuple = event.getKeyValue('fit_out') # returns dict
-	for tup in fittuple:
-		for entry in tup:
-			for pnumber, val in entry.fitterpaths.iteritems(): # val a list of fitters
-				for item in val:
-					if isinstance(item,tuple):
-						bpangles = item[4]
-						bestfit = item[0] # a list
-						if bpangles and bestfit: # a broken line fit results
-							err = item[1]     # a list
-							chi2 = item[2]    # a number
-							id = (entry.id,pnumber) # id tuple
-							Iic = Interval(bestfit[0]-3*err[0], bestfit[0]+3*err[0]) # allow 3 sigma interval
-							Islope = Interval(bestfit[1]-3*err[1], bestfit[1]+3*err[1]) # allow 3 sigma interval
-							for toytruth in truth:
-								par = toytruth.getParameters()
-								slope = par[1] # in x-y plane
-								ic = par[4] # on y-axis at x=0
-								bplist = toytruth.bplist
-								if slope in Islope and ic in Iic:
-									print 'Broken line validation found: with chi2=%f at (cluster %d, path %d)'%(chi2,id[0],id[1])
-									print 'Broken line: angles ',item
-									print 'Truth: angle ',bplist # list of tuples
-						elif bestfit: # not empty
-								err = item[1]     # a list
-								chi2 = item[2]    # a number
-								id = (entry.id,pnumber) # id tuple
-								#Iic = Interval(bestfit[0]-3*err[0], bestfit[0]+3*err[0]) # allow 3 sigma interval
-								Islope = Interval(bestfit[1]-3*err[1], bestfit[1]+3*err[1]) # allow 3 sigma interval
-								for toytruth in truth:
-									par = toytruth.getParameters()
-									slope = par[1] # in x-y plane
-									#ic = par[4] # on y-axis at x=0
-									if slope in Islope:
-										print 'Line validation found: with chi2=%f at (cluster %d, path %d)'%(chi2,id[0],id[1])
-										print 'best slope = %f +- %f'%(bestfit[1],err[1])
-										print 'best ic    = %f +- %f'%(bestfit[0],err[0])
-					else: # a HelixFit object
-						bestfit = item.fitmomentum     # a list
-						err = item.fitmomentum_errors  # a list
-						chi2 = item.chi2               # a number
-						refpos = item.par              # a list
-						referr = item.errors           # a list
-						id = (entry.id,pnumber)      # id tuple
-						Irefx = Interval(refpos[0]-3*referr[0], refpos[0]+3*referr[0]) # allow 3 sigma interval
-						Irefy = Interval(refpos[1]-3*referr[1], refpos[1]+3*referr[1])
-						Irefz = Interval(refpos[2]-3*referr[2], refpos[2]+3*referr[2])
-						Ipx = Interval(bestfit[0]-3*err[0], bestfit[0]+3*err[0]) # allow 3 sigma interval
-						Ipy = Interval(bestfit[1]-3*err[1], bestfit[1]+3*err[1])
-
-						#print 'Helix fit: '
-						#print item
-						for toytruth in truth:
-							par = toytruth.getParameters()
-							px = par[0]
-							py = par[1]
-							refx = par[3]
-							refy = par[4]
-							refz = par[5]
-							if refx in Irefx and refy in Irefy and refz in Irefz:
-								print 'Helix reference point fit OK'
-
-								if px in Ipx and py in Ipy:
-									print 'Helix validation found: with chi2=%f at (cluster %d, path %d)'%(chi2,id[0],id[1])
-									print item
 
 
 
 if __name__ == '__main__':
 	# Specify the file we want to run over
-	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/double_atvertex.tsim'
-	readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/single_vertex_helix.tsim'
-	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/double_Vvertex.tsim'
-	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/single_breakp.tsim'
-	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/triple_Sshaped.tsim'
-
+	readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/helix_calo.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/multiscatter_calo.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/illumination.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/Vvertex_calo.tsim'
+	#readfile  = '/home/epp/phsdaq/Code/pySNemo/workdir/validation/validationData/leftright_calo.tsim'
 
 	# Instantiate a Filament service object
 	fil = FilamentService(None,'cluster_out')
@@ -246,9 +210,14 @@ if __name__ == '__main__':
 	fitter = FittingService('track_out','fit_out',Bfield=0.0025)
 	#fitter = FittingService('track_out','fit_out',Bfield=0.0)
 
+	# Instantiate a FitExtrapolator
+	extra = FitExtrapolatorService('fit_out','extra_out')
+	final = ConsolidatorService('extra_out','final_out', 1) # takes cut off
 
 	# Build a pipeline
 	pipeline = Pipeline(print_event_info,
+			    print_truth,
+			    print_calo,
 			    fil,
 			    ca1,
 			    ca2,
@@ -257,11 +226,15 @@ if __name__ == '__main__':
 			    check_sweep,
 			    noise_to_cluster,
 			    track,
+			    print_track_info,
 			    fitter,
-			    print_validation)
+			    print_fitter,
+			    extra,
+			    final,
+			    print_consolidator)
 
 	# Create an event loop, giving it the filename and the function to run
-	loop = EventLoop(readfile, operation=pipeline, first_event=0, last_event=10)
+	loop = EventLoop(readfile, operation=pipeline, first_event=58, last_event=58)
 
 	# Run the event loop
 	loop.run()
