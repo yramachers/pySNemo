@@ -188,7 +188,8 @@ class FitExtrapolatorService(object):
                                 particle.set_vertex_foil(out[0])
                                 particle.set_vertex_calo(out[1])
                                 particle.set_calo_hit(calohit)
-                                particle.set_fitter(item)
+                                particle.set_fitter(left)
+                                particle.add_fitter_for_BL(right)
                                 particle.set_kink(out[2])
                                 particle.set_angles(out[3])                        
                                 calo_associated = True

@@ -107,6 +107,19 @@ class Particle(object):
         else:
             self.chi2 = fitobj.chi2 # helix fit
 
+
+    def add_fitter_for_BL(self, fitobj):
+        dummylist = [self.fitter]
+        dummylist.append(fitobj)
+        self.fitter = dummylist # change type to list
+        self.chi2 = 0.0
+        for entry in self.fitter:
+            if isinstance(entry,tuple): # get a total chi2 value
+                self.chi2 += entry[2] # line fit
+            else:
+                self.chi2 += entry.chi2 # helix fit
+
+
     def set_kink(self, flag):
         self.kink = flag
 
