@@ -1,0 +1,8 @@
+# my directories
+workdir/
+
+# C extensions
+*.so
+
+# emacs
+*.*~
