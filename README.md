@@ -70,6 +70,13 @@ setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/warwick/epp/2015.1/Cellar/root6/6.08.
 The compile instructions to create the small ROOT shared library are in-place at
 python/pysnemo/fitter/create_so.txt
 
+After that, there is a final hard-wired path to adapt, telling the code where to
+find the little library: the third line in pyroot3dfitterV2.py is
+
+root.gSystem.Load("/home/epp/phsdaq/Code/pySNemo/python/pysnemo/fitter/fit3dVers2_cxx.so")
+
+which needs adapting to the local install location.
+
 
 Licensing
 ---------
