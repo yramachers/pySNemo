@@ -38,6 +38,7 @@ Subpackages
     utility              --- Widely useful classes and functions.
     cluster              --- clustering for reconstruction
     graphtrack           --- convert raw data rings to hit candidates and produce possible paths
+    scipts               --- scripts for use of pySNemo, especially validation scripts
 
 
 Requirements
