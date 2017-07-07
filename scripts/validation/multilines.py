@@ -239,6 +239,10 @@ class helix_generator(object):
         self.helices = [] # helix container
 
 
+    def getHelices(self):
+        return self.helices
+
+
     def single_manual(self, intercept, px, py, pz):
         pos = (0.0, intercept * 1.0e-3, 0.0) # unit [m] for helix object
         charge = -1.0 # unit [e]
@@ -283,3 +287,11 @@ class helix_generator(object):
         bfield = 2.5e-3 # 25 Gauss
 
         return HX.helix(pos,momentum,charge,bfield)
+
+
+    def double_helix(self, intercept = 0.0):
+        self.helices = [] # helix container
+        # left tracker
+        self.helices.append(self.single_random_momentum_with_z(intercept,0))
+        # right tracker
+        self.helices.append(self.single_random_momentum_with_z(intercept,1))

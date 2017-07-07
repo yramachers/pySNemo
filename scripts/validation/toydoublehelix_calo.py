@@ -1,5 +1,4 @@
 import math
-import random
 import numpy as np
 import ROOT as root
 import multilines as ML
@@ -82,7 +81,9 @@ def cleanpicture(clist, rlist, info, yintercept):
         return collection[pick]
 
 
-def main_wall_test(caloinfo, info, cells):
+def main_wall_test(caloinfo, clusterentry):
+    info = clusterentry[2]
+    cells = clusterentry[0]
     # checks piercings of the main wall in case there are two
     rowpos = caloinfo[5]*259.0 - 1683.5 # pos in z
     
@@ -97,7 +98,7 @@ def main_wall_test(caloinfo, info, cells):
 Nsims = 1000 # Number of simulated lines
 
 # Set up ROOT data structures for file output and storage
-file = root.TFile("/tmp/helix_calo.tsim","recreate")
+file = root.TFile("/tmp/2helix_calo.tsim","recreate")
 tree = root.TTree("hit_tree","Hit data")
 tree.SetDirectory(file)
 
@@ -158,27 +159,41 @@ wgr = ML.demonstratorgrid()
 tgen = ML.helix_generator()
 dcalo = gcheck.demonstratorcalo()
 yinterc = 0.0
-
+nonhit = 0
 for i in range(Nsims):
-    lrtracker = random.randint(0,1) # pick a side randomly
-    struc = tgen.single_random_momentum_with_z(yinterc,lrtracker) # x=0 fixed for this generator
-    cells, radii = wgr.hits(struc, lrtracker) # left/right tracker half
-    info = wgr.wireinfo
-    if len(info): # only if there is any data at all
-        ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
-    caloinfo = dcalo.calohits(struc, lrtracker)
-    #print 'first time caloinfo: ',caloinfo
+    struc = tgen.double_helix() # x=0 fixed for this generator
+    both = tgen.getHelices()
+    lines = []
 
-    while len(caloinfo) < 1: # no calo was hit, try again
-        lrtracker = random.randint(0,1) # pick a side randomly
-        struc = tgen.single_random_momentum_with_z(yinterc,lrtracker) # x=0 fixed for this generator
-        cells, radii = wgr.hits(struc, lrtracker) # left/right tracker half
-        info = wgr.wireinfo
-        if len(info): # only if there is any data at all
-            ncells, nradii, ninfo = cleanpicture(cells, radii, info, yinterc) # remove returning helix branch
-        caloinfo = dcalo.calohits(struc, lrtracker)
-    #print 'second time caloinfo: ',caloinfo
+    # enable one line on the left
+    lines.append((both[0],0))
 
+    # second line on the right
+    lines.append((both[1],1))
+
+    # all hits related truth data in cluster
+    cluster = wgr.multi_track_hits(lines)
+    cluster2= dcalo.multi_calohits(lines)
+
+    while len(cluster2) < 2: # no calo was hit, try again
+        struc = tgen.double_helix() # x=0 fixed for this generator
+        both = tgen.getHelices()
+        lines = []
+        lines.append((both[0],0))
+        lines.append((both[1],1))
+        cluster = wgr.multi_track_hits(lines)
+        cluster2= dcalo.multi_calohits(lines)
+
+    # clean tracker traces
+    for k,item in cluster.iteritems():
+        c, r, info = item
+        # print 'cells before cleaning, key,cells',k,c
+        ncells, nradii, ninfo = cleanpicture(c, r, info, yinterc) # remove returning helix branch
+        # print 'cells after cleaning',ncells
+        # overwrite
+        cluster[k] = (ncells, nradii, ninfo)
+
+        
     file.cd()
     # Prepare data structure for this line
     dataStruct.dirx.clear()
@@ -207,60 +222,75 @@ for i in range(Nsims):
     dataStruct.calorow.clear() 
     dataStruct.calocolumn.clear()
 
-    # save the geometry truth data
-    for idx, ci in enumerate(caloinfo): # multiple calo hits with helix
-        if ci[1]==0 and ci[3]==lrtracker: # main wall correct side
-            if main_wall_test(ci, ninfo, ncells):
-                type = ci[1]
-                side = ci[3]
-                col  = ci[4]
-                row  = ci[5]
-                wall = ci[6]
+    # clean multiple calo hits
+    write = True
+    for k, caloinfo in cluster2.iteritems():
+        (cilist,pointlist) = caloinfo
+        ci = cilist[0]
+        point = pointlist[0]
+        if ci[1]==0:  # main wall
+            if ci[3]==k-1: # correct side
+                if main_wall_test(ci, cluster[k]):
+                    type = ci[1]
+                    side = ci[3]
+                    col  = ci[4]
+                    row  = ci[5]
+                    wall = ci[6]
                 #print 'picked: ',ci
-                calo_hit_point = dcalo.get_point(idx) # back as tuple here
+                    calo_hit_point = point # back as tuple here
                 #print 'at impact point: ',calo_hit_point
+                else:
+                    write = False
+                    continue # loose that helix
             else:
+                write = False
                 continue # loose that helix
         else:
+            write = False
             continue # loose that helix
-
-    dataStruct.caloid.push_back(0)
-    dataStruct.calorow.push_back(row)
-    dataStruct.calocolumn.push_back(col)
-    dataStruct.calotype.push_back(type)
-    dataStruct.caloside.push_back(side)
-    dataStruct.calowall.push_back(wall)
-
-    # truth values for structure
-    # save a helix as parameter set
-    refp = struc.referencePoint # triplet
-    mom  = struc.momentum       # triplet, z=0 by default
-    charge = int(struc.charge)       # number
-    dataStruct.dirx.push_back(mom[0]) # momenta in here
-    dataStruct.diry.push_back(mom[1])
-    dataStruct.dirz.push_back(mom[2])
-    dataStruct.charge.push_back(charge)
-    dataStruct.pointx.push_back(calo_hit_point[0]) # hit point on calo
-    dataStruct.pointy.push_back(calo_hit_point[1])
-    dataStruct.pointz.push_back(calo_hit_point[2])
-
+        if write:
+            dataStruct.pointx.push_back(calo_hit_point.x) # hit point on calo
+            dataStruct.pointy.push_back(calo_hit_point.y)
+            dataStruct.pointz.push_back(calo_hit_point.z)
+            dataStruct.caloid.push_back(k-1)
+            dataStruct.calorow.push_back(row)
+            dataStruct.calocolumn.push_back(col)
+            dataStruct.calotype.push_back(type)
+            dataStruct.caloside.push_back(side)
+            dataStruct.calowall.push_back(wall)
     counter = 0
-    for w,r,mi in zip(ncells, nradii, ninfo):
-        dataStruct.radius.push_back(r)
-        dataStruct.wirex.push_back(w[0])
-        dataStruct.wirey.push_back(w[1])
-        dataStruct.wirez.push_back(w[2])
-        dataStruct.gridid.push_back(counter)
-        side = mi[0] # wire side
-        row = mi[1] # wire column
-        col = mi[2] # wire layer
-        dataStruct.gridlayer.push_back(row)
-        dataStruct.gridcolumn.push_back(col)
-        dataStruct.gridside.push_back(side)
-        counter += 1 # count up all hits for entire event
-    
+    if write:
+        for k,val in cluster.iteritems():
+            struc = both[k-1]  # helix object
+            cells = val[0] # first list in cluster tuple 
+            radii = val[1] # as list
+            info = val[2]  # as list
+            
+            mom  = struc.momentum       # triplet, z=0 by default
+            charge = int(struc.charge)       # number
+            dataStruct.dirx.push_back(mom[0]) # momenta in here
+            dataStruct.diry.push_back(mom[1])
+            dataStruct.dirz.push_back(mom[2])
+            dataStruct.charge.push_back(charge)
+            
+            for w,r,mi in zip(cells,radii,info):
+                dataStruct.radius.push_back(r)
+                dataStruct.wirex.push_back(w[0])
+                dataStruct.wirey.push_back(w[1])
+                dataStruct.wirez.push_back(w[2])
+                dataStruct.gridid.push_back(counter)
+                side = mi[0] # wire side
+                row = mi[1] # wire column
+                col = mi[2] # wire layer
+                dataStruct.gridlayer.push_back(row)
+                dataStruct.gridcolumn.push_back(col)
+                dataStruct.gridside.push_back(side) # not covered yet 
+                counter += 1 # count up all hits for entire event
 
-    tree.Fill() # data structure fully filled, lines done
-    
+
+        tree.Fill() # data structure fully filled, lines done
+    else:
+        nonhit += 1
+print 'made %d events with %d non hit events'%(Nsims-nonhit,nonhit)
 tree.Write() # write all lines to disk
 file.Close()

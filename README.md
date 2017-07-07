@@ -62,3 +62,7 @@ setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/warwick/epp/2015.1/Cellar/root6/6.08.
 The compile instructions to create the small ROOT shared library are in-place at
 python/pysnemo/fitter/create_so.txt
 
+
+Licensing
+---------
+Please study the file LICENSE.txt for the distribution terms and conditions of use of pySNemo.
