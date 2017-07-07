@@ -6,3 +6,6 @@ workdir/
 
 # emacs
 *.*~
+
+# python compiled
+*.pyc
