@@ -1,6 +1,6 @@
 import ROOT
 from pysnemo.io.edm import Particle
-
+from pysnemo.utility.helix import HelixFit
 
 ROOT.gROOT.ProcessLine(
 "struct ParticleEventStorage{\
@@ -231,12 +231,31 @@ class ptdToRoot(object):
 			self.ptdStruct.vertex_z.push_back(fvtx[1])
 
 			fitter = particle.fitter
-			if not isinstance(fitter,tuple):
-				self.ptdStruct.charge.push_back(fitter.fitcharge)
+			side = particle.id[1]
+			if isinstance(fitter,HelixFit):
+				if side < 0: # left tracker, invert fitted charge and momentum
+					self.ptdStruct.charge.push_back(-fitter.fitcharge)
+					self.ptdStruct.foil_dir_x.push_back(-fitter.fitmomentum[0])
+					self.ptdStruct.foil_dir_y.push_back(-fitter.fitmomentum[1])
+					self.ptdStruct.foil_dir_z.push_back(fitter.fitmomentum[2])
+				else:
+					self.ptdStruct.charge.push_back(fitter.fitcharge)
+					self.ptdStruct.foil_dir_x.push_back(fitter.fitmomentum[0])
+					self.ptdStruct.foil_dir_y.push_back(fitter.fitmomentum[1])
+					self.ptdStruct.foil_dir_z.push_back(fitter.fitmomentum[2])
 				self.ptdStruct.chargeerr.push_back(fitter.fitcharge_error)
-				self.ptdStruct.foil_dir_x.push_back(fitter.fitmomentum[0])
-				self.ptdStruct.foil_dir_y.push_back(fitter.fitmomentum[1])
-				self.ptdStruct.foil_dir_z.push_back(fitter.fitmomentum[2])
+			elif isinstance(fitter, list): # broken line solution
+				self.ptdStruct.charge.push_back(0.0)
+				self.ptdStruct.chargeerr.push_back(0.0)
+				self.ptdStruct.foil_dir_x.push_back(1.0)
+				vertexline = fitter[0]
+				linepar = vertexline[0]
+				if len(linepar)>2:
+					self.ptdStruct.foil_dir_y.push_back(linepar[1])# slope xy
+					self.ptdStruct.foil_dir_z.push_back(linepar[3])# slope xz
+				else:
+					self.ptdStruct.foil_dir_y.push_back(linepar[1])# slope xy
+					self.ptdStruct.foil_dir_z.push_back(linepar[1])# slope xy
 			else:
 				self.ptdStruct.charge.push_back(0.0)
 				self.ptdStruct.chargeerr.push_back(0.0)
