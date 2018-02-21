@@ -22,6 +22,26 @@ def gg_to_image(data, tracker_rows, tracker_columns):
 
 
 
+def gg_to_full_image(data, tracker_rows, tracker_columns):
+	''' 
+	Create an image from geiger counter data in the tracker.
+	Assumes track_hit data as list in data.
+	'''
+	im = np.zeros((tracker_rows,tracker_columns)) # left tracker
+	for hit in data:    # assumes track_hit data as list in data
+		mi = hit.meta_info
+		side  = mi[3]
+		col   = mi[4]
+		row   = mi[5]
+		if side < 1: # left of foil
+			layer = 8-col
+		else:
+			layer = 9+col
+		im[row,layer]=1
+	return im  # return as numpy array
+
+
+
 def gg_to_single_image(data, tracker_rows, tracker_columns):
 	''' 
 	Create an image from geiger counter data in the tracker.
