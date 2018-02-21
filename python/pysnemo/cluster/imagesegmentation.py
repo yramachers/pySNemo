@@ -1,26 +1,26 @@
+import pysnemo.utility.gg2image as gg2i
 from scipy.ndimage import label
 import numpy as np
-import pysnemo.utility.gg2image as gg2i
+import networkx as nx
 
 
-class FilamentCluster(object):
+class ImageSegmentation(object):
     '''
     Simple tracker pre-clusterer using the tracker wires in each half tracker
     as black/white image pixels (on/off). The scipy ndimage routine 'label' 
     then checks connectedness of structures in that image. Each connected
     structure receives a distinct numerical label. 
+    The segmentation
+    algorithm then simply checks for splits in these separate structures
+    to identify N>1 clusters in connected structures.
     Non-splitting single structures are recovered perfectly.
-
-    If a split in the structure is detected then the segmentation 
-    algorithm checks for filaments: 
-    Turn structure into a graph, find maximum connected nodes, remove them
-    then check again for connectedness of nodes larger than 3, see whether 
-    the number of image structures has increased, i.e. filaments were split off.
-    If so, stop and declare each filament a cluster with the removed 
-    nodes, i.e. image pixels, returned equally to both split structures
-    (not clear to whom it belongs, hence to both).
+    Single split structures are identified and treated very 
+    conservatively such that true hits in clusters are never lost but
+    clusters rather contain too many hits.
+    Multiple split structures are also dealt with conservatively but 
+    are not necessarily very well split. These have to be re-clustered again 
+    with a more capable clusterng algorithm.
     '''
-
     def __init__(self, data):
         '''
         Input: Ring data as list of tracker_hit objects.
@@ -38,7 +38,7 @@ class FilamentCluster(object):
         start and steer the processing of raw tracker data to clusters.
         '''
         # image data, take images from left and right half-tracker as ndarrays
-        left, right = gg2i.gg_to_left_right_images(self.data, self.tracker_rows, self.tracker_layers)
+        left, right = gg2i.gg_to_image(self.data, self.tracker_rows, self.tracker_layers)
 
         cll, clr = self.clusterer(left, right) # process the tracker images, return clusters
 
@@ -59,6 +59,7 @@ class FilamentCluster(object):
         clR = { }
         all_left = []
         all_right = []
+        row,col = left.shape # same as right.shape hence only once
 
         anyslope = [[1, 1, 1], [1,1,1], [1,1,1]] # any slope structure
 
@@ -78,7 +79,6 @@ class FilamentCluster(object):
             rightcollection = self._all_connected(rightlabels, anyright) # get collection of all singly connected segments
             for ncls, right in enumerate(rightcollection):
                 all_right.append(self._collectionsplitting(right,rightlabels,1,ncls+1)) # send clusters into list
-
 
         # unravel the list of clusters
         counter = 0
@@ -116,260 +116,12 @@ class FilamentCluster(object):
 
 
 
-
     def _collectionsplitting(self, data, labeldata, side, clslabel):
         '''
         Main internal routine testing the splitting of connected structures
         '''
-        cl = { }
-        pixelstore = [] # complete store of pixels removed and their neighbours
-        anyslope = [[1,1,1], [1,1,1], [1,1,1]] # any slope structure
-
-        split =  self._splitpoints(data) # check for splits in a connected structure
-        #print 'after splitpoints: ',split
-        # case studies: split=0; no split, 
-        # =1; simple, use image segmentation, 
-        # =2; complex, try filament search
-        if split==2:
-            '''
-            This thins out filament structures in the image by removing 
-            maxiumum connected pixels iteratively, leaving isolated 
-            structures for the filament clusters. Needs to insert
-            the missing pixels afterwards where suitable.
-            '''
-            broken = False
-            #print 'Complex split, trying filament search.'
-
-            # every node is a pixel in the image
-            graph = gg2i.image_to_graph(data)
-            while not broken:
-                remove = [] # max connected node store to remove
-                neighbours = [] # remaining neighbour nodes stored
-                maxdegree = 0
-                for nd in graph.nodes():
-                    deg = graph.degree(nd)
-                    if deg >= maxdegree:
-                        maxdegree = deg
-                #print 'maximum degree found: %d'%maxdegree
-                if maxdegree < 5: # filaments too thin to find meaningful splitpoints
-                    #print 'Filaments too thin, trying image segmentation.'
-                    iseg = ImageSegmentation(data, side) # try alternativ with one-side data set
-                    iseg.run()
-                    cl = iseg.getClusters()
-                    return cl # out of function
-                    
-                # collect nodes to remove
-                for nd in graph.nodes():
-                    if graph.degree(nd) == maxdegree:
-                        remove.append(nd)
-                        neighbours.append(graph.neighbors(nd)) # list of list of tuples
-                    
-                        # remove the nodes with maximum degree
-                pixelstore.append((remove, neighbours)) # to put back later
-                for nd in remove:
-                    graph.remove_node(nd)
-
-                im = gg2i.graph_to_image(graph, self.tracker_rows, self.tracker_layers)
-                # check structures
-                imagelabels, nlabels = label(im,anyslope)
-                if nlabels > 1:
-                    cls = self._cluster(imagelabels, nlabels, side)
-                    #print 'n labels found: ',nlabels
-                    broken = True
-            # now put the undecided pixels back into the clusters
-            cl = self._restore_pixels(pixelstore, cls)
-
-        elif split==1:
-            #print 'Simple split, trying image segmentation.'
-            iseg = ImageSegmentation(data, side) # try with one-side data set
-            iseg.run()
-            cl = iseg.getClusters()
-            return cl # out of function
-
-        else:     # simple clustering with labels
-            cl = { }
-            clusteridx = { }
-            hitinfo = []
-            clusteridx[1] = np.where(labeldata==clslabel) # all indices in imagelabels
-            for r,c in zip(clusteridx[1][0],clusteridx[1][1]):
-                mi = (side, r, c) # left tracker
-                hitinfo.append(mi)
-            cl[1] = hitinfo # hitinfo structure for hit identification later
-            #print 'Filament: single cluster[1] has',hitinfo
-        return cl
-
-
-
-
-    def _splitpoints(self, data):
-        split = 0 # integer cases
-        splitstore = split
-        row, col = data.shape
-        anyslope = [[1, 1, 1], [1,1,1], [1,1,1]] # any slope structure
-
-        for n in range(1,col):
-            # check half-tracker, cut at each column
-            leftsplit, nstruct1 = label(data[:,0:n],anyslope)
-            rightsplit, nstruct2 = label(data[:,n:],anyslope)
-
-            # check cases
-            if nstruct1>0 and nstruct2>0: # have some data at all in that tracker section
-                if nstruct1==1 and nstruct2==2:
-                    split = 1 # simple case split, use image segmentation
-                elif nstruct1==2 and nstruct2==1:
-                    split = 1 # also vice versa
-                elif nstruct1>1 and nstruct2>1: # complex tracker data
-                    split = 2 # try filament search instead
-                if split > splitstore:
-                    splitstore = split # most complex case prevails
-                #print 'Fil: split (%d, %d) gives store=%d'%(nstruct1,nstruct2,splitstore)
-
-        return splitstore
-
-
-
-
-    def _cluster(self, imagelabels, maxlabels, side):
-        '''
-        image pixels with label to simplified internal tracker hits
-        '''
-        hitinfo = []
-        clusters = { }
-        clusteridx = { }
-        #print 'shape image: ',imagelabels.shape
-        for n in range(1,maxlabels+1):
-            clusteridx[n] = np.where(imagelabels==n) # all indices in imagelabels
-
-        # re-order in tuples for translation to tracker hits
-        for n in clusteridx.keys():
-            for r,c in zip(clusteridx[n][0],clusteridx[n][1]):
-                mi = (side, r, c) # tracker
-                hitinfo.append(mi)
-            clusters[n] = hitinfo # hitinfo structure for hit identification later
-            #print 'cluster[%d]'%n,' has',hitinfo
-            hitinfo = []
-        return clusters
-
-
-
-
-    def _restore_pixels(self, pixelstore, cls):
-        for tup in pixelstore: # separate removal loops
-            pixels = tup[0]
-            nnlist = tup[1]
-
-            for k, v in cls.iteritems(): # check each cluster for content
-                side = v[0][0] # same for all hitinfo entries
-                dubletlist = [(mi[1], mi[2]) for mi in v] # where v is the hitinfo
-                for dublet in dubletlist:
-                    for nd, nn in zip(pixels, nnlist):
-                        if dublet in nn: # at least one of the neighbours survived the pixel removal
-                            hit = (side, nd[0], nd[1])
-                            if not (hit in v):
-                                v.append(hit) # insert node as hitinfo
-                                #print 're-inserted info: (%d, %d, %d) in cluster %d'%(side, nd[0], nd[1], k)
-        return cls
-
-
-
-class ImageSegmentation(object):
-    '''
-    Alternativ image segmentation to Filament Clusterer for structure
-    too thinly connected to take apart as filaments.
-    Here the scipy ndimage routine 'label' 
-    checks connectedness of structures in that image. Each connected
-    structure receives a distinct numerical label. 
-    The segmentation
-    algorithm then simply checks for splits in these separate structures
-    to identify N>1 clusters in connected structures.
-    Single split structures are identified and treated very 
-    conservatively such that true hits in clusters are never lost but
-    clusters rather contain too many hits.
-    '''
-    def __init__(self, data, side):
-        '''
-        Input: Ring data as list of tracker_hit objects.
-
-        Output: Dictionary of lists of tracker_hit objects available with get method.
-        '''
-        self.tracker_layers = 9   # hardcoded tracker wire chamber image size
-        self.tracker_rows  = 113
-        self.data = data # needed for conversions to/from image
-        self.side = side
-
-
-    def run(self):
-        '''
-        start and steer the processing of raw tracker data to clusters.
-        '''
-        # image data, take images from left and right half-tracker as ndarrays
-        if isinstance(self.data, np.ndarray): # image received from Filament searcher
-            self.tracker_clusters = self.clusterer(self.data) # process the tracker images, return clusters
-
-        else: # full data segementation needed
-            image = gg2i.gg_to_single_image(self.data, self.tracker_rows, self.tracker_layers)
-            
-            self.tracker_clusters = self.clusterer(image) # process the tracker images, return clusters
-
-
-        
-    def getClusters(self):
-        return self.tracker_clusters # clusters in form of a dictionary
-
-
-
-    def clusterer(self, image):
-        '''
-        main clustering routine, steers what is to happen with each half-tracker.
-        '''
-        cls = { } # results storage
-        all_side = []
-
-        anyslope = [[1, 1, 1], [1,1,1], [1,1,1]] # any slope structure
-
-
-        # check left tracker
-        labels, anyonside = label(image,anyslope)
-
-        if anyonside>0:
-            collection = self._all_connected(labels, anyonside) # get collection of all singly connected segments
-            for ncls, onside in enumerate(collection): # left is a full image with one structure contained according to label
-                all_side.append(self._collectionsplitting(onside,labels,self.side,ncls+1)) # send clusters into list
-
-        # unravel the list of clusters
-        counter = 0
-        for cluster in all_side:
-            for n in cluster.keys():
-                cls[counter+n] = cluster[n]
-            counter += n
-
-        return cls
-
-
-
-
-    def _all_connected(self, imagelabels, nlabels):
-        '''
-        Gives a collection of images for each separate connected structure, if any.
-        Makes segmentation trivial for all trivial, non-split tracker structures.
-        '''
-        clusteridx = { }
-        collection = []
-        for n in range(1,nlabels+1):
-            clusteridx[n] = np.where(imagelabels==n) # all indices in imagelabels
-        for k in clusteridx.keys():
-            copyimage = np.zeros(imagelabels.shape)
-            for r,c in zip(clusteridx[k][0],clusteridx[k][1]):
-                copyimage[r][c] = 1
-            collection.append(copyimage)
-        return collection
-
-
-
-    def _collectionsplitting(self, data, labeldata, side, clslabel):
-        '''
-        Main internal routine testing the splitting of connected structures
-        '''
+        #multiflag = False
+        row,col = data.shape # data should be whole image
         anyslope = [[1,1,1], [1,1,1], [1,1,1]] # any slope structure
 
         split, lstore =  self._splitpoints(data) # check for splits in a connected structure
@@ -377,6 +129,16 @@ class ImageSegmentation(object):
         #print lstore
         # case studies
         if split:
+            if (2,2) in lstore: # multi split of singly connected structure
+                print 'complex clustering in GraphClustering'
+                gc = GraphClustering(side)
+                return gc.run(data)
+            elif (1,2) in lstore and (2,1) in lstore: # crossing tracks
+                print 'complex clustering in GraphClustering'
+                gc = GraphClustering(side)
+                return gc.run(data)
+
+            # single split of connected structure
             for counter,(ll,rr) in enumerate(lstore): # loop over tuples
                 if ll<1 or rr<1:
                     continue # don't consider empty data patches, next loop
@@ -446,17 +208,20 @@ class ImageSegmentation(object):
             hitinfo = []
             clusteridx[1] = np.where(labeldata==clslabel) # all indices in imagelabels
             for r,c in zip(clusteridx[1][0],clusteridx[1][1]):
-                mi = (side, r, c) # left tracker
+                if side<1:
+                    mi = (side, r, 8-c) # left tracker
+                else:
+                    mi = (side, r, c) # right tracker
                 hitinfo.append(mi)
             cl[1] = hitinfo # hitinfo structure for hit identification later
-            #print 'ImSeg: single cluster[1] has',hitinfo
+            #print 'single cluster[1] has',hitinfo
         return cl
 
 
 
     def _splitpoints(self, data):
         split = False 
-        row, col = data.shape
+        row,col = data.shape # data should be whole image
         labelstore = []
         anyslope = [[1, 1, 1], [1,1,1], [1,1,1]] # any slope structure
 
@@ -490,7 +255,10 @@ class ImageSegmentation(object):
         # re-order in tuples for translation to tracker hits
         for n in clusteridx.keys():
             for r,c in zip(clusteridx[n][0],clusteridx[n][1]):
-                mi = (side, r, c+offset) # left tracker
+                if side<1:
+                    mi = (side, r, 8-c-offset) # left tracker
+                else:
+                    mi = (side, r, c+offset) # right tracker
                 hitinfo.append(mi)
             clusters[n] = hitinfo # hitinfo structure for hit identification later
             #print 'cluster[%d]'%n,' has',hitinfo
@@ -510,7 +278,7 @@ class ImageSegmentation(object):
         newcls = { } # not overwriting the input
         newlist = []
         copylist = []
-        #print 'in merge_, have %d single cls, %d multi cls.'%(len(single),len(multi))
+        #    print 'in merge_, have %d single cls, %d multi cls.'%(len(single),len(multi))
         for k,v in multi.iteritems():
             for entry in v:
                 copylist.append(entry)
@@ -521,8 +289,8 @@ class ImageSegmentation(object):
                 newcls[k].extend(newlist)
                 newlist = [] # reset
             copylist = [] # clear
-            #for k in newcls.keys():
-            #print 'merged cluster[%d]'%k,' has',newcls[k]
+            #    for k in newcls.keys():
+            #        print 'merged cluster[%d]'%k,' has',newcls[k]
         return newcls
 
 
@@ -570,9 +338,194 @@ class ImageSegmentation(object):
             compareset1 = set() # reset
             clusteridx = { }
             hitinfo = []
-            
+
+            #    for k in newcls.keys():
+            #        print 'merged cluster[%d]'%k,' has',newcls[k]
         return newcls # re-clustered merged
 
 
         
 
+    def _stitch_ends(self, l, m, r):
+        '''
+        stitching only for the messy case of multi structures merging with multi structures
+        again not to loose any true hit in a cluster.
+        '''
+        w_to_w = set()
+        for kl in l.keys():
+            for entry in l[kl]: # triplet in list
+                s = entry[0]
+                row = entry[1]
+                column = entry[2]
+                for km in m.keys():
+                    for i in range(-1,2):# check 3x3 block around 
+                        for j in range(-1,2): # the border pixel
+                            if (s,row+i,column+j) in m[km]:
+                                w_to_w.add((kl,km))
+        for tup in w_to_w:
+            #print 'left: cluster %d merges with middle cluster %d'%tup
+            for entry in l[kl]:
+                m[km].append(entry) # form extended cluster for middle clusters from borders
+
+        w_to_w = set()
+        for kr in r.keys():
+            for entry in r[kr]: # triplet in list
+                s = entry[0]
+                row = entry[1]
+                column = entry[2]
+                for km in m.keys():
+                    for i in range(-1,2):# check 3x3 block around 
+                        for j in range(-1,2): # the border pixel
+                            if (s,row+i,column+j) in m[km]:
+                                w_to_w.add((kr,km))
+        for tup in w_to_w:
+            #print 'right: cluster %d merges with middle cluster %d'%tup
+            for entry in r[kr]:
+                m[km].append(entry) # form extended cluster for middle clusters from borders
+        return m
+
+
+
+
+class GraphClustering(object):
+    '''
+    Tracker image clusterer using the tracker wires in each half tracker
+    as black/white image pixels (on/off). Used for complicated track
+    structures that go beyond the Image segmentation clusterer.
+    '''
+    def __init__(self, side):
+        '''
+        Input: Image data as np.array from Imagesegmentation object.
+               Side as in which tracker half the image comes from.
+
+        Output: consistent with collectionsplitting in Imagesegmentation
+                a cluster of hitinfo tuples
+        '''
+        self.side = side
+
+
+    def run(self, data):
+        '''
+        Input: Image data as np.array
+        Returns clusters
+        '''
+        store = []
+        for col in range(data.shape[1]): # all columns
+            nlist = np.where(data[:,col]>0)
+            if len(nlist[0]):
+                cluster1d = self._oneDcluster(nlist[0])
+                store.append(cluster1d)
+        cl = self._cluster_withgraph(store)
+        print 'in run: before translate:',cl
+        return self._translate(store, cl)
+        
+
+
+    def _cluster_withgraph(self, data):
+        edges = self._connections(data) # list of pairs of tuples with connections    
+        G = nx.Graph()
+        G.add_edges_from(edges)
+
+        endslist = self._find_all_deadends(G)
+        start, end = self._find_startfinish(edges)
+        if len(endslist)>0:
+            start.extend(endslist)
+            end.extend(endslist)
+        print 'Start nodes: ',start
+        print 'End nodes: ',end
+
+        cl = { } # final storage
+        for s in start:
+            for e in end:
+                if nx.has_path(G,source=s, target=e):
+                    if s != e and s[0] != e[0]: # exclude nodes and identical layers
+                        cl[(s,e)] = [p for p in nx.all_shortest_paths(G, source=s, target=e)]
+        return cl
+
+
+    def _translate(self, store, cl):
+        # relate graph clusters back to pixel hits
+        clusters = { }
+        clid = 1
+        for k in cl.keys(): # keys are irrelevant, need cluster number as id
+            for path in cl[k]: # list of shortest paths in cluster
+                collection = []
+                for entry in path: # now have nodes
+                    layercluster = store[entry[0]-1][entry[1]] # the one-D cluster of pixels
+                    for row in layercluster:
+                        if self.side<1: # left case
+                            collection.append((self.side, row, 10-entry[0]-1))
+                        else:
+                            collection.append((self.side, row, entry[0]-1))
+                clusters[clid] = collection # ready for images to gg translation
+                clid += 1
+        #print 'in translate: clusters',clusters
+        return clusters
+
+
+    def _oneDcluster(self, data):
+        store = []
+        row = data[0]
+        collection = []
+        for entry in data: # array element entry
+            if entry-row < 2: # nearest neighbour, ascending order assumed
+                collection.append(entry)
+                row = entry
+            else: # distance>1 = next cluster
+                store.append(collection)
+                collection = [entry] # first entry in new cluster
+                row = entry
+        store.append(collection) # safe the final cluster collection
+        return store
+
+
+    def _is_connected(self, alist,blist):
+        aset = set(alist)
+        asetp1 = set(np.array(alist)+1) # move one unit
+        asetm1 = set(np.array(alist)-1) # move one unit
+        bset = set(blist)
+        if len(aset.intersection(bset))>0: # direct overlap
+            return True
+        elif len(asetp1.intersection(bset))>0: # neighbour overlap
+            return True
+        elif len(asetm1.intersection(bset))>0: # neighbour overlap
+            return True
+        else:
+            return False
+
+
+    def _connections(self, data): # connect 1d cluster lists
+        edges = []
+        layer = data[0] # first list of nodes
+        counter = 2 # second layer, start counting at 1 for layers
+        for entry in data[1:]: # next layers with nodes
+            for node in layer:
+                for nextnode in entry:
+                    if self._is_connected(node, nextnode):
+                        edges.append(((counter-1, layer.index(node)),(counter, entry.index(nextnode))))
+            layer = entry # prepare for next layer
+            counter += 1 # next layer
+        return edges
+
+
+
+    def _find_all_deadends(self, graph):
+        ends = []
+        for node in graph.nodes():
+            if len(graph.neighbors(node)) < 2: # single node end
+                if node[0] != 1 and node[0] != 9: # known from start finish finder
+                    ends.append(node)
+        print 'dead ends found: ', ends
+        return ends
+
+
+    def _find_startfinish(self, edges):
+        # find layer=1 and layer=9, the tracker extremes
+        starts = set()
+        ends = set()
+        for s,e in edges: # a list
+            if s[0]==1:
+                starts.add(s)
+            if e[0]==9:
+                ends.add(e)
+        return list(starts), list(ends)

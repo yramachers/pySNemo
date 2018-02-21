@@ -23,27 +23,26 @@ cluster.control - Control for clustering algorithms
 ===========================================================
 
 This module provides pipeline services for performing
-density-based clustering using DBSCAN as well as the set-cluster idea, a 
-point cloud service, filament finder and image segmentation.
+basic image segmentation.
 
 """
 
-__all__ = ['FilamentService']
+__all__ = ['ImageSegService']
 
-from pysnemo.cluster.filamentsearch import FilamentCluster
+from pysnemo.cluster.imagesegmentation import ImageSegmentation
 import logging
 
 
-class FilamentService(object):
+class ImageSegService(object):
 	"""
-	Pipeline entry for filament clustering
+	Pipeline entry for image segmentation clustering
 
 	Uses the raw hits only and can serve as preparation clustering for 
 	more detailed clusterers subsequently.
 	"""
 	def __init__(self, inboxkey, outboxkey):
 		"""
-		Initialise a FilamentService with the parameters given
+		Initialise an ImageSegService with the parameters given
 
 		inboxkey : the key to a list of tuples as input hits
 		            for processing with ImageSegmentation - None
@@ -51,7 +50,7 @@ class FilamentService(object):
 			    Must be list of tracker_hit objects.
 		outboxkey : output key in the event dictionary
 		"""
-		self.logger = logging.getLogger('eventloop.FilamentgService')
+		self.logger = logging.getLogger('eventloop.ImageSegService')
 		self.inkey = inboxkey
 		self.outkey = outboxkey
 
@@ -60,13 +59,13 @@ class FilamentService(object):
 		self.logger.info('Output key: %s',self.outkey)
 	
 	def __repr__(self):
-		s = 'Filament Cluster Service'
+		s = 'Image Segmentation Service'
 		return s
 
 
 	def __call__(self, event):
 		"""
-		Process an event with Filament Search and output the 
+		Process an event with Image Segmentation and output the 
 		clusters to the outbox key
 		"""
 		# Get input data according to keystring
@@ -83,8 +82,7 @@ class FilamentService(object):
 			data = event.getTrackerData()
 
 		if len(data)>0:
-			cand = self.process(data) # here call the filament search algorithm
-
+			cand = self.process(data) # here call the image segmentation algorithm
 		else: # empty event
 			event.setKeyValue(self.outkey, {})
 			return event
@@ -98,7 +96,7 @@ class FilamentService(object):
 
 	def process(self,data):
 		# Now run 
-		filament = FilamentCluster(data)
-		filament.run()
-		return filament.getClusters() # come as dictionary of numbered clusters
+		imageseg = ImageSegmentation(data)
+		imageseg.run()
+		return imageseg.getClusters() # come as dictionary of numbered clusters
 

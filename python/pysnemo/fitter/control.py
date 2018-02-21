@@ -123,12 +123,15 @@ class FittingService(object):
         Use the separate fitting services stand-alone, separately from
         event processing.
         '''
-        migradhelix = MigradFittingService("in","out",self.bfield) # inbox and outbox keys 
+        if self.bfield>0:
+            migradhelix = MigradFittingService("in","out",self.bfield) # inbox and outbox keys 
+            # Helix first
+            helixfits = migradhelix.process(data)
+        else:
+            helixfits = None
+
         migradline = MigradFittingService("in","out",0.0)
         brline = MS_FittingService3D("in2","out2") # are irrelevant for internal use like here
-
-        # Helix first
-        helixfits = migradhelix.process(data)
 
         # Broken lines next
         blfits = brline.process(data)
@@ -136,8 +139,10 @@ class FittingService(object):
         # Line next
         linefits = migradline.process(data)      
 
-        return (helixfits, blfits, linefits)
-
+        if helixfits is not None:
+            return (helixfits, blfits, linefits)
+        else:
+            return (blfits, linefits)
 
 
 class MigradFittingService(object):
