@@ -34,8 +34,9 @@ import pysnemo.fitter.pyroot3dfitterV2 as pfit
 import pysnemo.fitter.mslinearfitter as msfit
 import pysnemo.fitter.ms3dlinefitter as ms3d
 from pysnemo.io.edm import FitResults, ClusterPaths
+from scipy import stats
 import numpy as np
-
+from math import sqrt
 
 
 class FittingService(object):
@@ -141,8 +142,10 @@ class FittingService(object):
 
         if helixfits is not None:
             return (helixfits, blfits, linefits)
-        else:
+        elif blfits is not None:
             return (blfits, linefits)
+        else:
+            return (linefits,)
 
 
 class MigradFittingService(object):
@@ -221,6 +224,37 @@ class MigradFittingService(object):
 
 
 
+    def prefilter_path(self, hits): # return boolean
+        if not len(hits)>1:
+            return False
+        xtemp=[]
+        ytemp=[]
+        for hit in hits:
+            xtemp.append(hit[0])
+            ytemp.append(hit[1])
+        xa=np.array(xtemp)
+        ya=np.array(ytemp)
+        sl1,ic1,r1,p1,std1 = stats.linregress(xa,ya) # linear quick fit
+        err1 = abs(std1/sl1)
+        #print 'err1 = %f'%(err1)
+        xtemp=[]
+        ytemp=[]
+        for hit in hits:
+            xtemp.append(hit[0])
+            ytemp.append(hit[2])
+        xa=np.array(xtemp)
+        ya=np.array(ytemp)
+        sl2,ic2,r2,p2,std2 = stats.linregress(xa,ya) # linear quick fit
+        err2 = abs(std2/sl2)
+        #print 'err2 = %f'%(err2)
+        if err1>0.5 and err2>0.5:
+            return False
+        return True # first straight line fit Ok
+    
+
+
+
+
     def process(self, data):
         candidates = []
         for cpaths in data:
@@ -233,12 +267,13 @@ class MigradFittingService(object):
                     err = tuple(p[3:6]) # (ex,ey,ez) split path tuples
                     hits.append(h)
                     errors.append(err)
-                # Now construct the data object for fitting
-                hist = TGraph2DErrors(len(path))
-                hist.SetName("data")
-                # print 'path number %d'%pnumber
-                # and fit as line with output for line extrapolator
-                if (len(hits)>0):
+                if self.prefilter_path(hits):
+                    # Now construct the data object for fitting
+                    hist = TGraph2DErrors(len(path))
+                    hist.SetName("data")
+                    #print 'Migrad fitting service: PASS FILTER path number %d'%pnumber
+                    # and fit as line with output for line extrapolator
+                    #if (len(hits)>0):
                     if self.bfield <= 0.0: # no bfield, line fit
                         for i,(point,err) in enumerate(zip(hits,errors)): 
                             hist.SetPoint(i,point[0]*1.0e-3,point[1]*1.0e-3,point[2]*1.0e-3) # in [m]
@@ -248,6 +283,7 @@ class MigradFittingService(object):
                         lfitter = lf.lfitter
                         if (lfitter): # line fit, store a tuple
                             fr.add_fitter(pnumber,(lf.linepar,lf.fit_errors,lf.chi2,[],[]))
+                            #print 'line fit done with %f'%lf.chi2
                         #else:
                             #print "Failed MIGRAD line fit"
                     elif self.bfield > 0.0: # want a decent bfield for this, units Tesla
@@ -267,7 +303,7 @@ class MigradFittingService(object):
                         if (fitresult is not None): # store HelixFit object
                             fr.add_fitter(pnumber,fitresult) # added HelixFit
                             #print 'Found with start value %f'%startvalue
-#                            print fitresult
+                            #print fitresult
                         else:
                             hist.Clear() # even more generous errors
                             for i,(point,err) in enumerate(zip(hits,errors)):  # more generous 10% error for stiff helices
@@ -286,7 +322,7 @@ class MigradFittingService(object):
                                 #print 'Found 2nd time with start value %f'%startvalue
                             #else:
                                 #print "Failed MIGRAD helix fit"
-                hist.Clear()
+                    hist.Clear()
             candidates.append(fr)
         return candidates
 
@@ -490,89 +526,91 @@ class MS_FittingService3D(object):
             # results = {}
             for l, path in cpaths.paths.iteritems():
                 hits = path
+                if self.prefilter_path(hits):
+                    #print 'MS3D fitting service: PASS FILTER path number %d'%l
+                    # Now construct the data object for fitting
+                    icxy, slxy = self.start_values(hits,0)
+                    icxz, slxz = self.start_values(hits,1)
+                    #print 'Initial Start values: icxy=%f, slxy=%f'%(icxy,slxy)
+                    #print 'Initial Start values: icxz=%f, slxz=%f'%(icxz,slxz)
 
-                # Now construct the data object for fitting
-                icxy, slxy = self.start_values(hits,0)
-                icxz, slxz = self.start_values(hits,1)
-                #print 'Initial Start values: icxy=%f, slxy=%f'%(icxy,slxy)
-                #print 'Initial Start values: icxz=%f, slxz=%f'%(icxz,slxz)
+                    stvals = [icxy,slxy,icxz,slxz]
+                    bestfit, error, chi, beta_angles, beta_errors = ms3d.fitter(hits,stvals)
+                    #print 'Beta Values: ',beta_angles
+                    #print 'Beta Errors list: ',beta_errors
+                    if chi>=0: # valid fit
+                        bins, angles = ms3d.kink_finder(beta_angles, beta_errors)
+                        #print 'MS3D fitting service: Valid result with chi2= ',chi
+                        #print 'KinkFinder result: ',bins,angles
+                        # results[l] = []
+                        fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                        # results[l].append((bestfit,error,chi,bins,angles))
+                        if len(bins)>0: # split at kinks
+                            # now split the data and fit only innermost and 
+                            # outermost segment in order to extrapolate better to 
+                            # foil and calorimeter
+                            bins.sort()
+                            bin1 = bins[0]
+                            bin2 = bins[-1] # would be identical for single split
 
-                stvals = [icxy,slxy,icxz,slxz]
-                bestfit, error, chi, beta_angles, beta_errors = ms3d.fitter(hits,stvals)
-                #print 'Beta Values: ',beta_angles
-                #print 'Beta Errors list: ',beta_errors
-                if chi>=0: # valid fit
-                    bins, angles = ms3d.kink_finder(beta_angles, beta_errors)
-                    #print 'KinkFinder result: ',bins,angles
-                    # results[l] = []
-                    fr.add_fitter(l, (bestfit,error,chi,bins,angles))
-                    # results[l].append((bestfit,error,chi,bins,angles))
-                    if len(bins)>0: # split at kinks
-                        # now split the data and fit only innermost and 
-                        # outermost segment in order to extrapolate better to 
-                        # foil and calorimeter
-                        bins.sort()
-                        bin1 = bins[0]
-                        bin2 = bins[-1] # would be identical for single split
+                            # split the data
+                            if bin1<5:
+                                hits1 = hits[:bin1+4] # have at least 5 points
+                                #print 'short data1: ',hits1
+                                b1, e1, c1, b2, e2, c2 = self.short_fit(hits1)
+                                if c1>0 and c2>0:
+                                    # concatenate
+                                    bestshort = b1+b2
+                                    errshort = e1+e2
+                                    tchi = c1+c2
+                                    fr.add_fitter(l, (bestshort,errshort,tchi,bins,angles))
+                                #fr.add_fitter(l, (b2,e2,c2,bins,angles))
+                                # results[l].append((b1,e1,c1,bins,angles))
+                                # results[l].append((b2,e2,c2,bins,angles))
+                            else:
+                                hits1 = hits[:bin1]
+                                #print 'Hits to left: ',hits1
+                                icxy, slxy = self.start_values(hits1,0)
+                                icxz, slxz = self.start_values(hits1,1)
+                                #print 'Start values: icxy=%f, slxy=%f'%(icxy,slxy)
+                                #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
+                                stvals = [icxy,slxy,icxz,slxz]
+                                bestfit, error, chi, d1,d2 = ms3d.fitter(hits1,stvals)
+                                if chi>0:
+                                    fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                                # results[l].append((bestfit,error,chi,bins,angles))
 
-                        # split the data
-                        if bin1<5:
-                            hits1 = hits[:bin1+4] # have at least 5 points
-                            #print 'short data1: ',hits1
-                            b1, e1, c1, b2, e2, c2 = self.short_fit(hits1)
-                            if c1>0 and c2>0:
-                                # concatenate
-                                bestshort = b1+b2
-                                errshort = e1+e2
-                                tchi = c1+c2
-                                fr.add_fitter(l, (bestshort,errshort,tchi,bins,angles))
-                            #fr.add_fitter(l, (b2,e2,c2,bins,angles))
-                            # results[l].append((b1,e1,c1,bins,angles))
-                            # results[l].append((b2,e2,c2,bins,angles))
-                        else:
-                            hits1 = hits[:bin1]
-                            #print 'Hits to left: ',hits1
-                            icxy, slxy = self.start_values(hits1,0)
-                            icxz, slxz = self.start_values(hits1,1)
-                            #print 'Start values: icxy=%f, slxy=%f'%(icxy,slxy)
-                            #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
-                            stvals = [icxy,slxy,icxz,slxz]
-                            bestfit, error, chi, d1,d2 = ms3d.fitter(hits1,stvals)
-                            if chi>0:
-                                fr.add_fitter(l, (bestfit,error,chi,bins,angles))
-                            # results[l].append((bestfit,error,chi,bins,angles))
+                            if bin2>len(hits)-6:
+                                hits2 = hits[bin2-5:] # have at least 5 points
+                                #print 'short data2: ',hits2
+                                b1, e1, c1, b2, e2, c2 = self.short_fit(hits2)
+                                if c1>0 and c2>0:
+                                    # concatenate
+                                    bestshort = b1+b2
+                                    errshort = e1+e2
+                                    tchi = c1+c2
+                                    fr.add_fitter(l, (bestshort,errshort,tchi,bins,angles))
+                                #fr.add_fitter(l, (b1,e1,c1,bins,angles))
+                                #fr.add_fitter(l, (b2,e2,c2,bins,angles))
+                                # results[l].append((b1,e1,c1,bins,angles))
+                                # results[l].append((b2,e2,c2,bins,angles))
+                            else:
+                                hits2 = hits[bin2:]
+                                #print 'Hits to right: ',hits2
+                                icxy, slxy = self.start_values(hits2,0)
+                                icxz, slxz = self.start_values(hits2,1)
+                                #print 'Start values: icxy=%f, slxy=%f'%(icxy,slxy)
+                                #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
+                                stvals = [icxy,slxy,icxz,slxz]
+                                bestfit, error, chi, d1,d2 = ms3d.fitter(hits2,stvals)
+                                if chi>0:
+                                    fr.add_fitter(l, (bestfit,error,chi,bins,angles))
+                                # results[l].append((bestfit,error,chi,bins,angles))
 
-                        if bin2>len(hits)-6:
-                            hits2 = hits[bin2-5:] # have at least 5 points
-                            #print 'short data2: ',hits2
-                            b1, e1, c1, b2, e2, c2 = self.short_fit(hits2)
-                            if c1>0 and c2>0:
-                                # concatenate
-                                bestshort = b1+b2
-                                errshort = e1+e2
-                                tchi = c1+c2
-                                fr.add_fitter(l, (bestshort,errshort,tchi,bins,angles))
-                            #fr.add_fitter(l, (b1,e1,c1,bins,angles))
-                            #fr.add_fitter(l, (b2,e2,c2,bins,angles))
-                            # results[l].append((b1,e1,c1,bins,angles))
-                            # results[l].append((b2,e2,c2,bins,angles))
-                        else:
-                            hits2 = hits[bin2:]
-                            #print 'Hits to right: ',hits2
-                            icxy, slxy = self.start_values(hits2,0)
-                            icxz, slxz = self.start_values(hits2,1)
-                            #print 'Start values: icxy=%f, slxy=%f'%(icxy,slxy)
-                            #print 'Start values: icxz=%f, slxz=%f'%(icxz,slxz)
-                            stvals = [icxy,slxy,icxz,slxz]
-                            bestfit, error, chi, d1,d2 = ms3d.fitter(hits2,stvals)
-                            if chi>0:
-                                fr.add_fitter(l, (bestfit,error,chi,bins,angles))
-                            # results[l].append((bestfit,error,chi,bins,angles))
-
-                    #else: # initial fit failed
-                    #fr.add_fitter(l, (bestfit,error,chi,[],[]))
-                    # results[l] = [(bestfit,error,chi,[],[])]
-                    candidates.append(fr)
+                        #else: # initial fit failed
+                        #fr.add_fitter(l, (bestfit,error,chi,[],[]))
+                        # results[l] = [(bestfit,error,chi,[],[])]
+            candidates.append(fr)
             # cluster[cpaths.id] = fr
         return candidates
 
@@ -602,6 +640,34 @@ class MS_FittingService3D(object):
             ic = z[1]
         return ic, sl
 
+
+    def prefilter_path(self, hits): # return boolean
+        if not len(hits)>1:
+            return False
+        xtemp=[]
+        ytemp=[]
+        for hit in hits:
+            xtemp.append(hit[0])
+            ytemp.append(hit[1])
+        xa=np.array(xtemp)
+        ya=np.array(ytemp)
+        sl1,ic1,r1,p1,std1 = stats.linregress(xa,ya) # linear quick fit
+        err1 = abs(std1/sl1)
+        #print 'err1 = %f'%(err1)
+        xtemp=[]
+        ytemp=[]
+        for hit in hits:
+            xtemp.append(hit[0])
+            ytemp.append(hit[2])
+        xa=np.array(xtemp)
+        ya=np.array(ytemp)
+        sl2,ic2,r2,p2,std2 = stats.linregress(xa,ya) # linear quick fit
+        err2 = abs(std2/sl2)
+        #print 'err2 = %f'%(err2)
+        if err1>0.5 and err2>0.5:
+            return False
+        return True # first straight line fit Ok
+    
 
     def short_fit(self,hits):
         datax = []

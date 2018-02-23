@@ -238,34 +238,53 @@ def fitter(data,par):
 
 
 
+def martingale(previous, value, alpha):
+    return alpha*previous + (1-alpha)*value
+
+
+def peak_alarm(betaangles):
+    alpha = 0.9
+    threshold = 0.11
+    prval = betaangles[0]
+    final_value = betaangles[-1]
+    for entry in betaangles:
+        value = martingale(prval, entry, alpha)
+        #print 'filter difference ',abs(value-prval)
+        if abs(value-prval)>threshold and not entry==final_value:
+            return True # exclude final value kinks - don't work with TSpectrum
+        prval = value
+    return False
+
+ 
 def kink_finder(betaangles, berrors):
     '''
     Attempts to locate kinks (usually just one) using the error list 
     of angles along fitted multiple scattering model. Peaks in those 
     errors along fitted model point at kink locations.
     '''
-    n = len(betaangles)
-    hist = ROOT.TH1D("hist","title",n,1,n)
-    for i,(val,err) in enumerate(zip(betaangles,berrors)):
-        hist.SetBinContent(i+1,abs(val))
-        hist.SetBinError(i+1,sqrt(err))
-    sp = ROOT.TSpectrum()
-    npeaks = sp.Search(hist,1,"goff",0.9) # 90% threshold for second peak
-    #print "found npeaks = ",npeaks
-    if npeaks==0: # try one more
-        npeaks = sp.Search(hist,2.0,"goff",0.9) # 90% threshold for second peak
-        #print "2nd attempt npeaks = ",npeaks
     bins = []
     angles = []
-    if npeaks>0:
-        peakpos = array('f',[0]) # pyroot pointer helper
-        peakpos = sp.GetPositionX()
-        for i in range(npeaks):
-            bin = hist.FindBin(peakpos[i])
-            #print 'peak at bin: ',bin
-            #print 'and angle: ',hist.GetBinContent(bin)
-            bins.append(bin)
-            angles.append(hist.GetBinContent(bin))
+    if peak_alarm(betaangles):
+        n = len(betaangles)
+        hist = ROOT.TH1D("hist","title",n,1,n)
+        for i,(val,err) in enumerate(zip(betaangles,berrors)):
+            hist.SetBinContent(i+1,abs(val))
+            hist.SetBinError(i+1,sqrt(err))
+        sp = ROOT.TSpectrum()
+        npeaks = sp.Search(hist,1,"goff",0.9) # 90% threshold for second peak
+        #print "found npeaks = ",npeaks
+        if npeaks==0: # try one more
+            npeaks = sp.Search(hist,2.0,"goff",0.9) # 90% threshold for second peak
+            #print "2nd attempt npeaks = ",npeaks
+        if npeaks>0:
+            peakpos = array('f',[0]) # pyroot pointer helper
+            peakpos = sp.GetPositionX()
+            for i in range(npeaks):
+                bin = hist.FindBin(peakpos[i])
+                #print 'peak at bin: ',bin
+                #print 'and angle: ',hist.GetBinContent(bin)
+                bins.append(bin)
+                angles.append(hist.GetBinContent(bin))
     return bins, angles
 
 
